@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0c0e0d">
 <title>DEAD EXTRACT — Zombie Extraction Survival</title>
 <style>
   :root{
@@ -118,6 +122,92 @@
   .resultbig.win{color:#8fbf5a;}
   .resultbig.lose{color:#c74a3a;}
   .lootlist{background:#12160f;border:1px solid #2c3720;border-radius:10px;padding:12px;margin:12px 0;font-size:.84rem;color:#9fb08f;}
+
+  /* ---- mobile / touch additions ---- */
+  html,body{overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
+    padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);}
+  canvas{touch-action:none;}
+  .screen{padding-top:env(safe-area-inset-top);}
+
+  /* touch controls (hidden until JS enables) */
+  #touch{position:fixed;inset:0;z-index:6;pointer-events:none;display:none;}
+  #touch.show{display:block;}
+  .tc-stick{position:absolute;width:130px;height:130px;border-radius:50%;
+    background:rgba(30,40,25,.35);border:2px solid rgba(143,191,90,.35);
+    pointer-events:auto;touch-action:none;}
+  .tc-stick.left{left:calc(20px + env(safe-area-inset-left));bottom:calc(20px + env(safe-area-inset-bottom));}
+  .tc-stick.right{right:calc(20px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));}
+  .tc-thumb{position:absolute;width:60px;height:60px;border-radius:50%;
+    background:rgba(143,191,90,.55);border:2px solid rgba(207,224,184,.7);
+    left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;transition:none;}
+  .tc-stick.right .tc-thumb{background:rgba(199,74,58,.55);border-color:rgba(240,202,191,.7);}
+  .tc-btns{position:absolute;right:calc(20px + env(safe-area-inset-right));
+    bottom:calc(160px + env(safe-area-inset-bottom));display:flex;flex-direction:column;
+    gap:10px;pointer-events:auto;align-items:center;}
+  .tc-btn{width:58px;height:58px;border-radius:50%;background:rgba(30,40,25,.7);
+    border:2px solid rgba(143,191,90,.5);color:#cfe0b8;font-family:inherit;
+    font-size:.7rem;font-weight:700;letter-spacing:.05em;display:flex;
+    align-items:center;justify-content:center;touch-action:manipulation;padding:0;}
+  .tc-btn:active,.tc-btn.pressed{background:rgba(74,105,45,.75);transform:scale(.94);}
+  .tc-wpn-row{position:absolute;left:calc(170px + env(safe-area-inset-left));
+    bottom:calc(20px + env(safe-area-inset-bottom));display:flex;gap:8px;pointer-events:auto;}
+  .tc-wpn{width:46px;height:46px;border-radius:8px;background:rgba(30,40,25,.65);
+    border:2px solid rgba(143,191,90,.5);color:#cfe0b8;font-family:inherit;
+    font-size:.82rem;font-weight:700;display:flex;align-items:center;
+    justify-content:center;touch-action:manipulation;padding:0;}
+
+  /* menu / hideout responsive */
+  @media (max-width:720px){
+    h1{font-size:1.7rem;}
+    .wrap{padding:12px;}
+    .topbar{gap:6px;margin-bottom:10px;}
+    .money,.stat2{padding:6px 10px;font-size:.72rem;border-radius:8px;}
+    #wipeBtn{margin-left:0 !important;font-size:.7rem;padding:6px 10px;}
+    .tabs{gap:4px;margin-bottom:10px;}
+    .tab{padding:9px 10px;font-size:.66rem;letter-spacing:.04em;flex:1 1 auto;text-align:center;}
+    .tabbody{padding:10px;max-height:58vh;border-radius:0 8px 8px 8px;}
+    .grid{grid-template-columns:1fr;gap:8px;}
+    .card{padding:10px;}
+    .card h3{font-size:.86rem;}
+    .card .desc{font-size:.72rem;}
+    .statline{font-size:.68rem;gap:2px 8px;}
+    .btn{padding:10px 14px;font-size:.78rem;min-height:44px;}
+    .btn.big{padding:14px 22px;font-size:.9rem;letter-spacing:.1em;}
+    .gsmith{flex-direction:column;gap:12px;}
+    .gs-visual,.gs-slots{min-width:0;width:100%;}
+    .gun-canvas{max-width:100%;}
+    .controls{display:none;}
+    .deploybar{flex-direction:column;align-items:stretch;gap:10px;}
+    .load{flex-direction:column;align-items:flex-start;gap:4px;font-size:.74rem;}
+    .row{flex-wrap:wrap;gap:8px;padding:10px 4px;}
+    .row .btn{flex-shrink:0;min-height:36px;padding:6px 10px;font-size:.72rem;}
+    .optbtns{gap:5px;}
+    .opt{padding:8px 10px;font-size:.7rem;min-height:36px;}
+    .lootlist{font-size:.78rem;}
+    .resultbig{font-size:1.6rem;}
+
+    /* HUD moves to TOP on mobile so it stays clear of joysticks */
+    #hud{top:0;bottom:auto;padding:8px 10px;padding-top:calc(8px + env(safe-area-inset-top));
+      background:linear-gradient(180deg,rgba(8,10,8,.85),transparent);}
+    .hudrow{flex-wrap:wrap;gap:6px;}
+    .bars{flex:1 0 100%;max-width:none;order:1;}
+    .bar{height:9px;}
+    .bar b{font-size:.55rem;line-height:9px;}
+    .wpn{flex:1;text-align:left;order:2;}
+    .wpn .name{font-size:.7rem;}
+    .wpn .ammo{font-size:1.05rem;}
+    .info{flex:1;text-align:right;order:3;font-size:.72rem;line-height:1.5;}
+    .info .timer{font-size:.95rem;}
+    #extractProg{top:auto;bottom:calc(160px + env(safe-area-inset-bottom));padding:8px 14px;}
+    #extractProg .pbar{width:180px;}
+  }
+
+  /* landscape phones — tighter menu */
+  @media (max-width:720px) and (orientation:landscape){
+    .tabbody{max-height:48vh;}
+    h1{font-size:1.4rem;}
+  }
 </style>
 </head>
 <body>
@@ -189,6 +279,22 @@
 </div>
 <div id="extractProg"><div style="font-size:.8rem;letter-spacing:.1em;color:#cfe0b8">EXTRACTING…</div><div class="pbar"><i id="extractFill"></i></div></div>
 <div id="toast"></div>
+<!-- MOBILE TOUCH CONTROLS -->
+<div id="touch">
+  <div class="tc-stick left" id="tcMove"><div class="tc-thumb"></div></div>
+  <div class="tc-stick right" id="tcAim"><div class="tc-thumb"></div></div>
+  <div class="tc-btns">
+    <button class="tc-btn" id="tcReload" aria-label="Reload">R</button>
+    <button class="tc-btn" id="tcHeal" aria-label="Heal">H</button>
+    <button class="tc-btn" id="tcInteract" aria-label="Interact">E</button>
+    <button class="tc-btn" id="tcSprint" aria-label="Sprint">SPR</button>
+  </div>
+  <div class="tc-wpn-row">
+    <button class="tc-wpn" id="tcWpn1" aria-label="Weapon 1">1</button>
+    <button class="tc-wpn" id="tcWpn2" aria-label="Weapon 2">2</button>
+  </div>
+</div>
+
 
 <script>
 (() => {
@@ -317,11 +423,20 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 let VW=960, VH=600;
 function resize(){
-  VW = Math.min(window.innerWidth, 1280);
-  VH = Math.min(window.innerHeight, 760);
-  canvas.width=VW; canvas.height=VH;
+  // Use full viewport (mobile-friendly). Desktop still caps for perf if huge screen.
+  const maxW = Math.min(window.innerWidth, 1600);
+  const maxH = Math.min(window.innerHeight, 1000);
+  VW = maxW; VH = maxH;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(VW * dpr);
+  canvas.height = Math.round(VH * dpr);
+  canvas.style.width = VW + "px";
+  canvas.style.height = VH + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
-window.addEventListener("resize", resize); resize();
+window.addEventListener("resize", resize);
+window.addEventListener("orientationchange", () => setTimeout(resize, 250));
+resize();
 
 // ============================================================= WORLD
 const WORLD = {w:2600, h:2000};
@@ -389,6 +504,7 @@ function startRaid(){
   state="raid";
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("show"));
   document.getElementById("hud").classList.add("show");
+  updateTouchVisibility();
   persist();
   if(!running){ running=true; requestAnimationFrame(loop); }
 }
@@ -462,6 +578,102 @@ canvas.addEventListener("mousemove",e=>{
 canvas.addEventListener("mousedown",e=>{ if(e.button===0) mouse.down=true; });
 window.addEventListener("mouseup",e=>{ if(e.button===0) mouse.down=false; });
 canvas.addEventListener("contextmenu",e=>e.preventDefault());
+
+// ============================================================= TOUCH INPUT
+const touch = {
+  move: {active:false, x:0, y:0},
+  aim:  {active:false, angle:0, dist:0, fire:false}
+};
+function isTouchDevice(){
+  return ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
+}
+function setupJoystick(id, target, opts){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const thumb = el.querySelector(".tc-thumb");
+  const R = 42;
+  let pointerId = null;
+  const rect = () => el.getBoundingClientRect();
+  const move = (clientX, clientY) => {
+    const r = rect();
+    const cx = r.left + r.width/2, cy = r.top + r.height/2;
+    let dx = clientX - cx, dy = clientY - cy;
+    const d = Math.hypot(dx, dy);
+    if(d > R){ dx = dx/d*R; dy = dy/d*R; }
+    thumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    target.x = dx/R; target.y = dy/R;
+    target.angle = Math.atan2(dy, dx);
+    target.dist = Math.min(1, d/R);
+    if(opts && opts.autofire) target.fire = target.dist > 0.15;
+  };
+  const start = (e) => {
+    e.preventDefault();
+    const t = e.changedTouches ? e.changedTouches[0] : e;
+    pointerId = t.identifier != null ? t.identifier : "mouse";
+    target.active = true;
+    move(t.clientX, t.clientY);
+  };
+  const drag = (e) => {
+    if(!target.active) return;
+    e.preventDefault();
+    let pt = null;
+    if(e.changedTouches){
+      for(const t of e.changedTouches) if(t.identifier === pointerId){ pt = t; break; }
+    } else pt = e;
+    if(pt) move(pt.clientX, pt.clientY);
+  };
+  const end = (e) => {
+    if(!target.active) return;
+    e.preventDefault();
+    if(e.changedTouches){
+      let found = false;
+      for(const t of e.changedTouches) if(t.identifier === pointerId){ found = true; break; }
+      if(!found) return;
+    }
+    target.active = false;
+    target.x = 0; target.y = 0; target.dist = 0; target.fire = false;
+    thumb.style.transform = "translate(-50%, -50%)";
+    pointerId = null;
+  };
+  el.addEventListener("touchstart", start, {passive:false});
+  el.addEventListener("touchmove",  drag,  {passive:false});
+  el.addEventListener("touchend",   end,   {passive:false});
+  el.addEventListener("touchcancel",end,   {passive:false});
+}
+function bindTouchButton(id, onDown, onUp){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const down = (e) => { e.preventDefault(); el.classList.add("pressed"); onDown && onDown(); };
+  const up   = (e) => { e.preventDefault(); el.classList.remove("pressed"); onUp && onUp(); };
+  el.addEventListener("touchstart", down, {passive:false});
+  el.addEventListener("touchend",   up,   {passive:false});
+  el.addEventListener("touchcancel",up,   {passive:false});
+  el.addEventListener("mousedown",  down);
+  el.addEventListener("mouseup",    up);
+  el.addEventListener("mouseleave", up);
+}
+function initTouchControls(){
+  if(!isTouchDevice()) return;
+  document.getElementById("touch").classList.add("show");
+  setupJoystick("tcMove", touch.move);
+  setupJoystick("tcAim",  touch.aim, {autofire:true});
+  bindTouchButton("tcReload",   () => { if(state==="raid") startReload(); });
+  bindTouchButton("tcHeal",     () => { if(state==="raid") startHeal(); });
+  bindTouchButton("tcInteract", () => { if(state==="raid") interact(); });
+  bindTouchButton("tcSprint",
+    () => { keys["shift"] = true; },
+    () => { keys["shift"] = false; }
+  );
+  bindTouchButton("tcWpn1", () => {/* placeholder for future weapon swap */});
+  bindTouchButton("tcWpn2", () => {/* placeholder for future weapon swap */});
+}
+// show/hide touch controls with raid state
+function updateTouchVisibility(){
+  const t = document.getElementById("touch");
+  if(!t) return;
+  if(isTouchDevice() && state === "raid") t.classList.add("show");
+  else if(state !== "raid") t.classList.remove("show");
+}
 
 function startReload(){
   const p=player; if(p.reloading||p.mag>=p.weapon.mag||p.reserve<=0) return;
@@ -541,10 +753,14 @@ function update(dt, t){
   raidTime -= dt/60;
   if(raidTime<=0){ endRaid(false,"Lost — failed to extract in time"); return; }
 
-  // movement
+  // movement — analog joystick overrides discrete keys when active
   let mx=0,my=0;
-  if(keys["w"])my-=1; if(keys["s"])my+=1; if(keys["a"])mx-=1; if(keys["d"])mx+=1;
-  const moving=(mx||my);
+  if(touch.move.active){
+    mx = touch.move.x; my = touch.move.y;
+  } else {
+    if(keys["w"])my-=1; if(keys["s"])my+=1; if(keys["a"])mx-=1; if(keys["d"])mx+=1;
+  }
+  const moving=(Math.abs(mx)>0.15||Math.abs(my)>0.15);
   const sprint = keys["shift"] && p.stamina>0 && moving && p.healing<=0;
   if(moving){ const l=Math.hypot(mx,my); mx/=l; my/=l; }
   let spd=p.speed*(sprint?1.7:1)*(p.healing>0?0.4:1);
@@ -554,12 +770,17 @@ function update(dt, t){
   else p.stamina=Math.min(100,p.stamina+0.5*dt);
   p.recoilHeat=(p.recoilHeat||0)*Math.pow(0.9,dt);   // recoil recovers when not firing
 
-  // aim
-  p.angle=Math.atan2((mouse.y+cam.y)-p.y,(mouse.x+cam.x)-p.x);
+  // aim — touch joystick sets angle directly, otherwise use mouse world coord
+  if(touch.aim.active){
+    p.angle = touch.aim.angle;
+  } else {
+    p.angle=Math.atan2((mouse.y+cam.y)-p.y,(mouse.x+cam.x)-p.x);
+  }
   // healing
   if(p.healing>0){ p.healing-=dt*16.6667; if(p.healing<=0){ p.hp=Math.min(p.maxhp,p.hp+MED_HEAL); toast("Healed +"+MED_HEAL); } }
-  // shooting
-  if(mouse.down){ if(p.weapon.auto) fire(); else if(!p._heldTrigger) fire(); p._heldTrigger=true; }
+  // shooting — mouse OR touch right-stick pushed past threshold triggers fire
+  const firing = mouse.down || (touch.aim.active && touch.aim.fire);
+  if(firing){ if(p.weapon.auto) fire(); else if(!p._heldTrigger) fire(); p._heldTrigger=true; }
   else p._heldTrigger=false;
 
   // bullets
@@ -1039,14 +1260,14 @@ function showResult(success, reason, lines){
 document.getElementById("rBack").addEventListener("click",()=>{
   document.getElementById("result").classList.remove("show");
   document.getElementById("menu").classList.add("show");
-  state="menu"; refreshTop(); renderDeploy();
+  state="menu"; refreshTop(); renderDeploy(); updateTouchVisibility();
 });
 document.getElementById("wipeBtn").addEventListener("click",()=>{
   if(confirm("Wipe all progress and start fresh?")){ save=defaultSave(); persist(); refreshTop(); renderDeploy(); }
 });
 
 // ============================================================= BOOT
-loadSave(); refreshTop(); renderDeploy();
+loadSave(); refreshTop(); renderDeploy(); initTouchControls();
 })();
 </script>
 </body>
