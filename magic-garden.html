@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grove of the Moon — Magic Merge Garden</title>
+<style>
+  :root{
+    --bg1:#0b0620; --bg2:#1a0e38;
+    --rune:#b98bff; --gold:#ffd98a; --glow:#8f6bff;
+    --panel:rgba(30,16,64,.55); --panel-brd:rgba(160,120,255,.25);
+    --cell:rgba(20,10,45,.6); --cell-brd:rgba(140,110,220,.18);
+    --txt:#e9e2ff; --txt-dim:#a99cd6;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:"Trebuchet MS",'Segoe UI',system-ui,sans-serif; color:var(--txt);
+    background:
+      radial-gradient(1200px 700px at 20% -10%, #3a1466 0%, transparent 55%),
+      radial-gradient(900px 600px at 110% 20%, #123a6b 0%, transparent 50%),
+      radial-gradient(700px 700px at 50% 120%, #4a0f5a 0%, transparent 55%),
+      linear-gradient(160deg,var(--bg1),var(--bg2) 55%,#100a2e);
+    min-height:100%; display:flex; flex-direction:column; align-items:center;
+    padding:16px 12px 40px; overflow-x:hidden;
+  }
+  .sky{position:fixed;inset:0;pointer-events:none;z-index:0;}
+  .star{position:absolute;border-radius:50%;background:#fff;opacity:.5;animation:tw 4s ease-in-out infinite;}
+  @keyframes tw{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:.9;transform:scale(1.1)}}
+  .wrap{position:relative;z-index:1;width:100%;max-width:540px;}
+
+  h1{text-align:center;margin:.1em 0 .05em;font-size:clamp(1.5rem,6vw,2.3rem);font-weight:800;
+    background:linear-gradient(90deg,#c9a6ff,#8ad0ff,#ffd98a,#c9a6ff);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 14px rgba(150,110,255,.45));}
+  .sub{text-align:center;color:var(--txt-dim);font-size:.8rem;margin:0 0 12px;letter-spacing:.06em;text-transform:uppercase;}
+
+  .hud{display:flex;gap:10px;justify-content:center;margin-bottom:12px;flex-wrap:wrap;}
+  .stat{background:var(--panel);border:1px solid var(--panel-brd);border-radius:14px;padding:7px 15px;min-width:86px;
+    text-align:center;backdrop-filter:blur(6px);box-shadow:0 4px 22px rgba(60,20,120,.35);}
+  .stat .lbl{font-size:.6rem;letter-spacing:.14em;color:var(--txt-dim);text-transform:uppercase;}
+  .stat .val{font-size:1.3rem;font-weight:800;color:var(--gold);text-shadow:0 0 12px rgba(255,200,120,.4);}
+  .stat.coins .val{color:#ffd257;}
+  .stat.mana .val{color:#8ad0ff;}
+
+  .board-frame{position:relative;padding:12px;border-radius:22px;
+    background:linear-gradient(160deg,rgba(45,22,90,.6),rgba(18,10,44,.7));
+    border:1px solid rgba(150,110,255,.28);box-shadow:0 12px 50px rgba(40,10,90,.55), inset 0 0 40px rgba(120,80,220,.10);}
+  #board{display:grid;gap:7px;touch-action:none;}
+  .cell{position:relative;aspect-ratio:1/1;border-radius:14px;background:var(--cell);border:1px solid var(--cell-brd);
+    display:flex;align-items:center;justify-content:center;user-select:none;touch-action:none;
+    transition:box-shadow .16s, background .16s;box-shadow:inset 0 0 14px rgba(0,0,0,.35);overflow:visible;}
+  .cell.plant{cursor:grab;border-color:rgba(180,150,255,.32);}
+  .cell.plant:active{cursor:grabbing;}
+  .cell .glyph{font-size:clamp(1.4rem,7vw,2.1rem);line-height:1;filter:drop-shadow(0 0 8px currentColor);pointer-events:none;}
+  .cell .tier{position:absolute;bottom:2px;right:5px;font-size:.55rem;color:var(--txt-dim);font-weight:700;pointer-events:none;}
+  .cell.lifting{opacity:.25;}
+  .cell.drag-over{box-shadow:inset 0 0 0 2px rgba(255,215,140,.75), inset 0 0 18px rgba(255,200,120,.3);background:rgba(70,45,120,.55);}
+  .cell.drag-bad{box-shadow:inset 0 0 0 2px rgba(255,120,120,.7);}
+  .cell.drop .glyph{animation:sky .5s cubic-bezier(.3,1.5,.5,1);}
+  @keyframes sky{0%{transform:translateY(-260px) scale(.5);opacity:0}70%{opacity:1}85%{transform:translateY(6px) scale(1.05)}100%{transform:translateY(0) scale(1)}}
+  .cell.pop .glyph{animation:pop .3s ease;}
+  @keyframes pop{0%{transform:scale(.2) rotate(-18deg)}60%{transform:scale(1.28) rotate(6deg)}100%{transform:scale(1)}}
+
+  .ghost{position:fixed;pointer-events:none;z-index:60;transform:translate(-50%,-50%);
+    font-size:2.1rem;filter:drop-shadow(0 0 12px currentColor);will-change:left,top;}
+
+  .buybar{display:flex;gap:12px;align-items:center;justify-content:center;margin:16px 0 4px;flex-wrap:wrap;}
+  .buy{display:flex;align-items:center;gap:10px;background:linear-gradient(160deg,#6a2fae,#3a1a72);
+    border:1px solid rgba(190,160,255,.45);border-radius:16px;padding:11px 20px;cursor:pointer;
+    font-weight:800;font-size:1rem;color:#fff;box-shadow:0 6px 22px rgba(80,30,160,.5);transition:transform .1s,box-shadow .18s,opacity .2s;}
+  .buy:hover:not(.disabled){transform:translateY(-2px);box-shadow:0 8px 28px rgba(120,50,210,.6);}
+  .buy:active:not(.disabled){transform:translateY(0);}
+  .buy.disabled{opacity:.45;cursor:not-allowed;}
+  .buy .seed{font-size:1.5rem;filter:drop-shadow(0 0 8px #7dd67d);}
+  .buy .price{color:#ffe08a;}
+
+  .legend{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap;}
+  .lg{background:var(--panel);border:1px solid var(--panel-brd);border-radius:12px;padding:6px 12px;font-size:.72rem;color:var(--txt-dim);}
+  .lg b{color:var(--gold);}
+
+  .hint{text-align:center;color:var(--txt-dim);font-size:.76rem;margin:12px 0 0;min-height:1.1em;transition:color .2s;}
+  .hint.flash{color:var(--gold);}
+
+  .actions{display:flex;gap:10px;justify-content:center;margin-top:14px;}
+  .btn{background:rgba(30,16,64,.5);color:#fff;border:1px solid rgba(180,150,255,.4);border-radius:12px;
+    padding:9px 18px;font-weight:700;cursor:pointer;font-size:.84rem;transition:transform .1s,box-shadow .18s;}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 6px 22px rgba(90,40,180,.5);}
+
+  .float{position:absolute;pointer-events:none;font-weight:800;font-size:.9rem;color:var(--gold);
+    text-shadow:0 0 10px rgba(255,200,120,.7);animation:rise 1s ease forwards;z-index:50;white-space:nowrap;}
+  @keyframes rise{0%{opacity:0;transform:translate(-50%,0) scale(.8)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-46px) scale(1.05)}}
+  .spark{position:absolute;width:6px;height:6px;border-radius:50%;pointer-events:none;z-index:55;background:#fff;}
+
+  details.codex{margin-top:16px;background:var(--panel);border:1px solid var(--panel-brd);border-radius:14px;padding:4px 14px;}
+  details.codex summary{cursor:pointer;padding:8px 0;font-weight:700;color:var(--rune);font-size:.85rem;}
+  .codex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;padding:6px 0 12px;}
+  .codex-item{text-align:center;background:rgba(20,10,45,.5);border:1px solid rgba(140,110,220,.2);border-radius:10px;padding:8px 4px;}
+  .codex-item .ci-g{font-size:1.5rem;filter:drop-shadow(0 0 6px currentColor);}
+  .codex-item .ci-n{font-size:.62rem;color:var(--txt-dim);margin-top:3px;}
+  .codex-item .ci-t{font-size:.56rem;color:#6d5aa8;}
+
+  .panel{margin-top:16px;background:var(--panel);border:1px solid var(--panel-brd);border-radius:16px;overflow:hidden;backdrop-filter:blur(6px);}
+  .tabs{display:flex;}
+  .tab{flex:1;background:rgba(20,10,45,.4);border:none;color:var(--txt-dim);font-weight:700;font-size:.85rem;
+    padding:11px 8px;cursor:pointer;letter-spacing:.03em;transition:background .16s,color .16s;font-family:inherit;}
+  .tab.active{background:linear-gradient(160deg,rgba(90,45,158,.6),rgba(58,26,114,.5));color:#fff;box-shadow:inset 0 -2px 0 var(--gold);}
+  .tabbody{padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .tabbody.hidden{display:none;}
+  .shop-card{display:flex;align-items:center;gap:12px;background:rgba(20,10,45,.5);border:1px solid rgba(140,110,220,.2);border-radius:12px;padding:10px 12px;}
+  .shop-card .sc-ic{font-size:1.7rem;filter:drop-shadow(0 0 8px currentColor);flex:0 0 auto;}
+  .shop-card .sc-mid{flex:1;min-width:0;}
+  .sc-nm{font-weight:800;font-size:.9rem;color:var(--txt);}
+  .sc-desc{font-size:.72rem;color:var(--txt-dim);margin-top:1px;}
+  .pips{display:flex;gap:4px;margin-top:6px;}
+  .pip{width:16px;height:6px;border-radius:3px;background:rgba(160,120,255,.18);}
+  .pip.on{background:linear-gradient(90deg,#ffd98a,#ff9ecf);box-shadow:0 0 6px rgba(255,200,120,.5);}
+  .sc-buy{flex:0 0 auto;background:linear-gradient(160deg,#6a2fae,#3a1a72);color:#ffe08a;font-weight:800;
+    border:1px solid rgba(190,160,255,.4);border-radius:10px;padding:8px 12px;cursor:pointer;font-size:.8rem;
+    font-family:inherit;transition:transform .1s,box-shadow .16s;white-space:nowrap;}
+  .sc-buy:hover{transform:translateY(-1px);box-shadow:0 5px 16px rgba(90,40,180,.5);}
+  .sc-buy.maxed{background:rgba(40,24,80,.6);color:var(--txt-dim);cursor:default;}
+  .sc-buy.active{background:linear-gradient(160deg,#2f7a4a,#1e6b3a);color:#c7ffd8;border-color:rgba(140,255,180,.4);}
+
+  .overlay{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(6,3,18,.78);backdrop-filter:blur(4px);}
+  .overlay.show{display:flex;}
+  .modal{background:linear-gradient(160deg,rgba(50,24,100,.96),rgba(18,10,44,.97));border:1px solid rgba(170,130,255,.4);
+    border-radius:20px;padding:24px 26px;max-width:350px;text-align:center;box-shadow:0 20px 70px rgba(40,10,90,.7);}
+  .modal h2{margin:.1em 0 .3em;font-size:1.4rem;color:#ffd98a;}
+  .modal p{color:var(--txt-dim);font-size:.88rem;line-height:1.55;margin:.4em 0 1.1em;text-align:left;}
+  .modal .big{font-size:1.8rem;color:#8ad0ff;font-weight:800;}
+</style>
+</head>
+<body>
+<div class="sky" id="sky"></div>
+
+<div class="wrap">
+  <h1>Grove of the Moon</h1>
+  <p class="sub">✦ Buy seeds ✦ Drag to merge ✦ Upgrade ✦</p>
+
+  <div class="hud">
+    <div class="stat coins"><div class="lbl">Coins</div><div class="val" id="coins">0</div></div>
+    <div class="stat"><div class="lbl">Score</div><div class="val" id="score">0</div></div>
+    <div class="stat mana"><div class="lbl">Best Bloom</div><div class="val" id="best">—</div></div>
+  </div>
+
+  <div class="board-frame"><div id="board"></div></div>
+
+  <div class="buybar">
+    <div class="buy" id="buyBtn">
+      <span class="seed">🌱</span>
+      <span>Buy Seed</span>
+      <span class="price">🪙 <span id="cost">5</span></span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="lg"><b>3–4</b>→<b>1</b></div>
+    <div class="lg"><b>5–7</b>→<b>2</b></div>
+    <div class="lg"><b>8–10</b>→<b>3</b></div>
+    <div class="lg"><b>11–13</b>→<b>4</b></div>
+    <div class="lg">+1 per 3 more…</div>
+  </div>
+
+  <div class="panel">
+    <div class="tabs">
+      <button class="tab active" data-tab="upg">⚡ Upgrades</button>
+      <button class="tab" data-tab="buff">✨ Buffs</button>
+    </div>
+    <div class="tabbody" id="tab-upg"></div>
+    <div class="tabbody hidden" id="tab-buff"></div>
+  </div>
+
+  <p class="hint" id="hint">Buy a seed — it falls from the sky at a random spot. Drag plants onto empty tiles to arrange, or onto a matching plant to merge the whole cluster.</p>
+
+  <div class="actions">
+    <button class="btn" id="newGame">↺ New Grove</button>
+    <button class="btn" id="howBtn">How to Play</button>
+  </div>
+
+  <details class="codex"><summary>📖 Flora Codex</summary><div class="codex-grid" id="codex"></div></details>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="mTitle"></h2>
+    <p id="mText"></p>
+    <div class="big" id="mScore"></div>
+    <div style="margin-top:16px;text-align:center"><button class="btn" id="mBtn">OK</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const FLORA = [
+    {n:"Spore",g:"🌱",c:"#7dd67d"},{n:"Sprout",g:"🌿",c:"#63c98a"},{n:"Sapling",g:"🪴",c:"#8fd98a"},
+    {n:"Moonbud",g:"🌸",c:"#ff9ecf"},{n:"Nightbloom",g:"🌺",c:"#ff7fa8"},{n:"Starpetal",g:"🌷",c:"#c39bff"},
+    {n:"Sunwreath",g:"🌻",c:"#ffd98a"},{n:"Lotus of Ages",g:"🪷",c:"#9ad7ff"},{n:"Eldertree",g:"🌳",c:"#7be0b0"},
+    {n:"Worldbloom",g:"🎆",c:"#fff2a8"}
+  ];
+  const MAX=FLORA.length-1, SIZE=6, COST=5, START_COINS=100;
+
+  let grid, coins, score, best, over, drag=null, upg, buffState;
+  const $=id=>document.getElementById(id);
+  const boardEl=$("board"), hintEl=$("hint"), overlay=$("overlay");
+
+  function init(){
+    grid=Array.from({length:SIZE*SIZE},()=>null);
+    coins=START_COINS; score=0; best=-1; over=false; drag=null;
+    upg={thrifty:0,potent:0,rich:0,bountiful:0};
+    buffState={goldenUntil:0,surgeUntil:0,moon:false};
+    boardEl.style.gridTemplateColumns=`repeat(${SIZE},1fr)`;
+    build(); renderUpg(); renderBuffs(); updateHUD();
+    overlay.classList.remove("show"); overlay.dataset.mode="";
+    setHint("Buy a seed — it drops at a random spot. Drag onto empty tiles to arrange, onto a match to merge.");
+  }
+
+  // ---------- render ----------
+  function build(){
+    boardEl.innerHTML="";
+    for(let i=0;i<grid.length;i++){
+      const cell=document.createElement("div");
+      cell.dataset.i=i; boardEl.appendChild(cell); paint(i);
+    }
+    boardEl.addEventListener("pointerdown",onDown);
+  }
+  function paint(i){
+    const cell=boardEl.children[i], t=grid[i];
+    cell.className="cell";
+    if(t===null){ cell.innerHTML=""; }
+    else{ const f=FLORA[t]; cell.classList.add("plant"); cell.style.color=f.c;
+      cell.innerHTML=`<span class="glyph" style="color:${f.c}">${f.g}</span><span class="tier">${t+1}</span>`; }
+  }
+  function repaint(){ for(let i=0;i<grid.length;i++) paint(i); }
+  function updateHUD(){
+    $("coins").textContent=Math.floor(coins);
+    $("score").textContent=score.toLocaleString();
+    $("best").textContent=best<0?"—":FLORA[best].g;
+    $("cost").textContent=seedCost();
+    $("buyBtn").classList.toggle("disabled", coins<seedCost() || !grid.includes(null) || over);
+  }
+  function setHint(m,flash){ hintEl.textContent=m; hintEl.classList.toggle("flash",!!flash);
+    if(flash) setTimeout(()=>hintEl.classList.remove("flash"),900); }
+
+  // ---------- buy: drop from sky ----------
+  function seedCost(){ return Math.max(1, COST - upg.thrifty); }
+  const SPAWN=[[72,28],[55,38,7],[40,40,17,3],[28,40,24,8]];
+  function rollTier(){
+    const w=SPAWN[Math.min(upg.potent,SPAWN.length-1)];
+    let r=Math.random()*w.reduce((a,b)=>a+b,0), t=0;
+    for(let k=0;k<w.length;k++){ if(r<w[k]){t=k;break;} r-=w[k]; }
+    if(surgeActive()) t++;
+    return Math.min(t, MAX-1);
+  }
+  function spawnSeed(){                          // drops one seed at a random empty tile
+    const empties=[]; grid.forEach((v,i)=>{ if(v===null) empties.push(i); });
+    if(!empties.length) return false;
+    const i=empties[(Math.random()*empties.length)|0], t=rollTier();
+    grid[i]=t; paint(i); boardEl.children[i].classList.add("drop"); sparkle(i,FLORA[t].c);
+    return true;
+  }
+  function buy(){
+    if(over) return;
+    const cost=seedCost();
+    if(coins<cost){ setHint("Not enough coins — merge clusters to earn more."); return; }
+    if(!grid.includes(null)){ setHint("The field is full! Merge some plants to make room."); return; }
+    coins-=cost; spawnSeed(); updateHUD();
+  }
+
+  // ---------- geometry ----------
+  function neighbours(i){ const r=i/SIZE|0,c=i%SIZE,o=[];
+    if(r>0)o.push(i-SIZE); if(r<SIZE-1)o.push(i+SIZE); if(c>0)o.push(i-1); if(c<SIZE-1)o.push(i+1); return o; }
+  function floodSame(start,t){ const seen=new Set([start]),st=[start],out=[];
+    while(st.length){ const c=st.pop(); out.push(c);
+      for(const n of neighbours(c)) if(!seen.has(n)&&grid[n]===t){seen.add(n);st.push(n);} } return out; }
+  function nearestEmpties(center,count){ const res=[],seen=new Set([center]),q=[center];
+    while(q.length&&res.length<count){ const c=q.shift(); if(grid[c]===null)res.push(c);
+      for(const n of neighbours(c)) if(!seen.has(n)){seen.add(n);q.push(n);} } return res; }
+  const outFor=n=> n<3?0 : n<5?1 : 2+Math.floor((n-5)/3);  // 3→1,5→2,8→3,11→4,14→5,+1 per 3 more
+
+  // ---------- drag & drop ----------
+  function onDown(e){
+    if(over) return;
+    const cell=e.target.closest(".cell"); if(!cell) return;
+    const i=+cell.dataset.i; if(grid[i]===null) return;
+    e.preventDefault();
+    drag={origin:i, tier:grid[i], lastTarget:null};
+    const f=FLORA[drag.tier];
+    const g=document.createElement("div"); g.className="ghost"; g.style.color=f.c; g.textContent=f.g;
+    document.body.appendChild(g); drag.ghost=g;
+    moveGhost(e); cell.classList.add("lifting");
+    window.addEventListener("pointermove",onMove);
+    window.addEventListener("pointerup",onUp);
+    window.addEventListener("pointercancel",onUp);
+  }
+  function moveGhost(e){ drag.ghost.style.left=e.clientX+"px"; drag.ghost.style.top=e.clientY+"px"; }
+  function onMove(e){
+    if(!drag) return; moveGhost(e);
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    const tc=el&&el.closest&&el.closest(".cell");
+    const ti=tc?+tc.dataset.i:null;
+    if(ti!==drag.lastTarget){
+      clearHi();
+      if(ti!==null&&ti!==drag.origin){
+        const t=boardEl.children[ti];
+        if(grid[ti]===null) t.classList.add("drag-over");
+        else if(grid[ti]===drag.tier) t.classList.add("drag-over");
+        else t.classList.add("drag-bad");
+      }
+      drag.lastTarget=ti;
+    }
+  }
+  function clearHi(){ [...boardEl.children].forEach(c=>c.classList.remove("drag-over","drag-bad")); }
+  function onUp(e){
+    if(!drag) return;
+    const el=document.elementFromPoint(e.clientX,e.clientY);
+    const tc=el&&el.closest&&el.closest(".cell");
+    const target=tc?+tc.dataset.i:null;
+    const {origin,tier}=drag;
+    drag.ghost.remove(); clearHi();
+    boardEl.children[origin].classList.remove("lifting");
+    window.removeEventListener("pointermove",onMove);
+    window.removeEventListener("pointerup",onUp);
+    window.removeEventListener("pointercancel",onUp);
+    drag=null;
+    if(target===null||target===origin) return;              // dropped outside → snap back
+    if(grid[target]===null){                                // MOVE / arrange
+      grid[origin]=null; grid[target]=tier; paint(origin); paint(target);
+      boardEl.children[target].classList.add("pop");
+    } else if(grid[target]===tier){                         // MERGE
+      grid[origin]=null;
+      const group=floodSame(target,tier);
+      const total=group.length+1;
+      if(total<3){ grid[origin]=tier; paint(origin);
+        setHint("Need at least 3 alike touching to merge.",true); return; }
+      doMerge(target,tier,group,total);
+    } else {                                                // occupied, different tier → snap back
+      setHint("Those don't match — drop onto the same flora to merge.");
+    }
+    updateHUD();
+  }
+
+  // ---------- merging ----------
+  function reward(n,t){
+    score+=(t+1)*n*3;
+    let c=(Math.round(n*Math.pow(2,t)*2.5)+n) * (1+0.25*upg.rich) * (goldenActive()?2:1);
+    coins+=Math.round(c);
+  }
+  function doMerge(target,tier,group,total){
+    group.forEach(j=>grid[j]=null);                 // origin already cleared
+    if(buffState.moon){ total+=3; buffState.moon=false; renderBuffs(); }   // Harvest Moon buff
+    const nt=Math.min(tier+1,MAX);
+    let outs=outFor(total);
+    if(upg.bountiful && Math.random()<0.15*upg.bountiful) outs++;          // Bountiful Merge
+    const cells=nearestEmpties(target,outs);
+    cells.forEach(j=>{ grid[j]=nt; if(nt>best)best=nt; });
+    reward(total,tier);
+    repaint(); cells.forEach(j=>{ boardEl.children[j].classList.add("pop"); sparkle(j,FLORA[nt].c); });
+    floatText(target, `+${outs} ${FLORA[nt].g}`);
+    setHint(`Merged ${total} ${FLORA[tier].n} → ${outs} ${FLORA[nt].g} ${FLORA[nt].n}!`,true);
+    updateHUD();
+    setTimeout(()=>cascade(cells),280);
+  }
+  function cascade(list){
+    const q=[...list];
+    while(q.length){
+      const i=q.shift(); if(grid[i]===null) continue;
+      const t=grid[i], g=floodSame(i,t);
+      if(g.length>=3){
+        let outs=outFor(g.length); if(upg.bountiful && Math.random()<0.15*upg.bountiful) outs++;
+        const nt=Math.min(t+1,MAX);
+        g.forEach(j=>grid[j]=null);
+        const cells=nearestEmpties(i,outs);
+        cells.forEach(j=>{ grid[j]=nt; if(nt>best)best=nt; });
+        reward(g.length,t);
+        repaint(); cells.forEach(j=>{ boardEl.children[j].classList.add("pop"); sparkle(j,FLORA[nt].c); });
+        floatText(i,`+${outs} ${FLORA[nt].g}`);
+        updateHUD();
+        setTimeout(()=>cascade([...cells,...q]),280);
+        return;
+      }
+    }
+    if(best>=MAX) win();
+  }
+
+  // ---------- effects ----------
+  function floatText(i,txt){ const r=boardEl.children[i].getBoundingClientRect();
+    const f=document.createElement("div"); f.className="float"; f.textContent=txt;
+    f.style.left=(r.left+r.width/2)+"px"; f.style.top=(r.top+r.height/2)+"px";
+    document.body.appendChild(f); setTimeout(()=>f.remove(),1000); }
+  function sparkle(i,color){ const r=boardEl.children[i].getBoundingClientRect();
+    const cx=r.left+r.width/2, cy=r.top+r.height/2;
+    for(let k=0;k<10;k++){ const s=document.createElement("div"); s.className="spark";
+      s.style.background=`radial-gradient(circle,#fff,${color}33)`; s.style.left=cx+"px"; s.style.top=cy+"px";
+      const ang=Math.random()*6.28, dist=16+Math.random()*26;
+      document.body.appendChild(s);
+      requestAnimationFrame(()=>{ s.style.transition="transform .6s ease,opacity .6s ease";
+        s.style.transform=`translate(${Math.cos(ang)*dist}px,${Math.sin(ang)*dist}px) scale(${.4+Math.random()})`;
+        s.style.opacity="0"; });
+      setTimeout(()=>s.remove(),650); } }
+
+  function win(){ over=true;
+    modal("✦ The Worldbloom Rises ✦","You raised the legendary Worldbloom. The moon smiles upon your grove.",score.toLocaleString()+" pts","Plant Anew","reset"); }
+
+  // ---------- modal / how ----------
+  function modal(title,text,big,btn,mode){
+    $("mTitle").textContent=title; $("mText").innerHTML=text; $("mScore").textContent=big;
+    $("mBtn").textContent=btn; overlay.dataset.mode=mode; overlay.classList.add("show");
+  }
+  function showHow(){ modal("How to Play",
+    "🪙 <b>Buy Seed</b> spends coins — a plant falls from the sky at a <b>random</b> tile.<br><br>"+
+    "✋ <b>Drag</b> a plant onto an <b>empty</b> tile to arrange your garden.<br><br>"+
+    "🔗 Drag a plant onto a <b>matching</b> one to merge the whole touching cluster:<br>"+
+    "&nbsp;&nbsp;• 3–4 → <b>1</b>, 5–7 → <b>2</b>, 8–10 → <b>3</b>,<br>"+
+    "&nbsp;&nbsp;&nbsp;11 → <b>4</b>, 14 → <b>5</b> … +1 for every 3 more!<br><br>"+
+    "💰 Bigger merges pay more coins. Reach the 🎆 <b>Worldbloom</b>!","","Got it","how"); }
+
+  // ---------- upgrades & buffs ----------
+  const UPGRADES=[
+    {id:"thrifty",   ic:"🪙", nm:"Thrifty Seeds",   desc:"Seeds cost 1 less coin",       max:4, costs:[40,80,160,320]},
+    {id:"potent",    ic:"🌟", nm:"Potent Seeds",    desc:"Better odds of higher seeds",  max:3, costs:[60,150,300]},
+    {id:"rich",      ic:"💰", nm:"Rich Harvest",    desc:"+25% coins from every merge",  max:5, costs:[50,120,260,520,900]},
+    {id:"bountiful", ic:"🍀", nm:"Bountiful Merge", desc:"+15% chance of a bonus plant", max:3, costs:[80,200,450]},
+  ];
+  const BUFFS=[
+    {id:"golden", ic:"✨", nm:"Golden Hour",  desc:"2× coins for 30s",           cost:60, dur:30000},
+    {id:"shower", ic:"🌧️", nm:"Sky Shower",   desc:"Rain 5 free seeds now",       cost:40},
+    {id:"moon",   ic:"🌙", nm:"Harvest Moon", desc:"Next merge counts +3 bigger", cost:50},
+    {id:"surge",  ic:"☀️", nm:"Growth Surge", desc:"Seeds spawn +1 tier for 20s", cost:70, dur:20000},
+  ];
+  const nowT=()=>Date.now();
+  const goldenActive=()=>nowT()<buffState.goldenUntil;
+  const surgeActive =()=>nowT()<buffState.surgeUntil;
+
+  function renderUpg(){
+    const box=$("tab-upg"); box.innerHTML="";
+    UPGRADES.forEach(u=>{
+      const lvl=upg[u.id], maxed=lvl>=u.max, cost=maxed?0:u.costs[lvl];
+      const pips=Array.from({length:u.max},(_,k)=>`<span class="pip${k<lvl?' on':''}"></span>`).join("");
+      const card=document.createElement("div"); card.className="shop-card";
+      card.innerHTML=`<div class="sc-ic">${u.ic}</div><div class="sc-mid">
+        <div class="sc-nm">${u.nm}</div><div class="sc-desc">${u.desc}</div><div class="pips">${pips}</div></div>
+        <button class="sc-buy${maxed?' maxed':''}">${maxed?"MAX":"🪙 "+cost}</button>`;
+      if(!maxed) card.querySelector(".sc-buy").addEventListener("click",()=>buyUpg(u.id));
+      box.appendChild(card);
+    });
+  }
+  function buyUpg(id){
+    const u=UPGRADES.find(x=>x.id===id), lvl=upg[id];
+    if(lvl>=u.max) return;
+    const cost=u.costs[lvl];
+    if(coins<cost){ setHint(`Need 🪙${cost} for ${u.nm}.`); return; }
+    coins-=cost; upg[id]++; renderUpg(); updateHUD();
+    setHint(`${u.nm} → level ${upg[id]}!`,true);
+  }
+
+  function renderBuffs(){
+    const box=$("tab-buff"); if(!box) return; box.innerHTML="";
+    BUFFS.forEach(b=>{
+      let label=`🪙 ${b.cost}`, active=false, secs=0;
+      if(b.id==="golden"&&goldenActive()){active=true;secs=Math.ceil((buffState.goldenUntil-nowT())/1000);}
+      if(b.id==="surge"&&surgeActive()){active=true;secs=Math.ceil((buffState.surgeUntil-nowT())/1000);}
+      if(b.id==="moon"&&buffState.moon){active=true;}
+      if(active) label = secs?`● ${secs}s`:"● READY";
+      const card=document.createElement("div"); card.className="shop-card";
+      card.innerHTML=`<div class="sc-ic">${b.ic}</div><div class="sc-mid">
+        <div class="sc-nm">${b.nm}</div><div class="sc-desc">${b.desc}</div></div>
+        <button class="sc-buy${active?' active':''}">${label}</button>`;
+      card.querySelector(".sc-buy").addEventListener("click",()=>activateBuff(b.id));
+      box.appendChild(card);
+    });
+  }
+  function activateBuff(id){
+    if(over) return;
+    const b=BUFFS.find(x=>x.id===id);
+    if(id==="golden"&&goldenActive()) return;
+    if(id==="surge"&&surgeActive()) return;
+    if(id==="moon"&&buffState.moon) return;
+    if(coins<b.cost){ setHint(`Need 🪙${b.cost} for ${b.nm}.`); return; }
+    coins-=b.cost;
+    if(id==="golden"){ buffState.goldenUntil=nowT()+b.dur; setHint("✨ Golden Hour — double coins!",true); }
+    else if(id==="surge"){ buffState.surgeUntil=nowT()+b.dur; setHint("☀️ Growth Surge — mightier seeds!",true); }
+    else if(id==="moon"){ buffState.moon=true; setHint("🌙 Harvest Moon primed — merge away!",true); }
+    else if(id==="shower"){ let d=0; for(let k=0;k<5;k++) if(spawnSeed()) d++; setHint(`🌧️ Sky Shower dropped ${d} seeds!`,true); }
+    renderBuffs(); updateHUD();
+  }
+  setInterval(()=>{ const box=$("tab-buff"); if(box && !box.classList.contains("hidden")) renderBuffs(); },500);
+
+  document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    const id=t.dataset.tab;
+    $("tab-upg").classList.toggle("hidden", id!=="upg");
+    $("tab-buff").classList.toggle("hidden", id!=="buff");
+    if(id==="buff") renderBuffs();
+  }));
+
+  // ---------- stars ----------
+  (function(){ const sky=$("sky");
+    for(let i=0;i<60;i++){ const s=document.createElement("div"); s.className="star";
+      const sz=Math.random()*2+1; s.style.width=s.style.height=sz+"px";
+      s.style.left=Math.random()*100+"%"; s.style.top=Math.random()*100+"%";
+      s.style.animationDelay=(Math.random()*4)+"s"; sky.appendChild(s); } })();
+  (function(){ const c=$("codex"); FLORA.forEach((f,i)=>{ const el=document.createElement("div");
+    el.className="codex-item"; el.innerHTML=`<div class="ci-g" style="color:${f.c}">${f.g}</div><div class="ci-n">${f.n}</div><div class="ci-t">Tier ${i+1}</div>`; c.appendChild(el); }); })();
+
+  // hold-to-repeat buying
+  let holdTimer=null, holdDelay=null;
+  function startHold(e){
+    e.preventDefault();
+    buy();                                  // immediate first buy
+    holdDelay=setTimeout(()=>{               // then auto-repeat while held
+      holdTimer=setInterval(()=>{
+        if(over||coins<COST||!grid.includes(null)){ stopHold(); return; }
+        buy();
+      },130);
+    },380);
+  }
+  function stopHold(){ clearTimeout(holdDelay); clearInterval(holdTimer); holdTimer=holdDelay=null; }
+  const buyEl=$("buyBtn");
+  buyEl.addEventListener("pointerdown",startHold);
+  buyEl.addEventListener("pointerup",stopHold);
+  buyEl.addEventListener("pointerleave",stopHold);
+  buyEl.addEventListener("pointercancel",stopHold);
+
+  $("newGame").addEventListener("click",init);
+  $("howBtn").addEventListener("click",showHow);
+  $("mBtn").addEventListener("click",()=>{ const m=overlay.dataset.mode;
+    overlay.classList.remove("show"); if(m==="reset") init(); });
+
+  init();
+})();
+</script>
+</body>
+</html>

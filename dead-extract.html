@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEAD EXTRACT — Zombie Extraction Survival</title>
+<style>
+  :root{
+    --bg:#0c0e0d; --panel:#151a12; --ink:#d8e0d5; --dim:#8a978a;
+    --acc:#8fbf5a; --acc2:#c7a24a; --danger:#c74a3a; --steel:#1b201d; --steel2:#232a25;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:#0c0e0d;color:#d8e0d5;
+    font-family:"Consolas","SF Mono",ui-monospace,monospace;overflow:hidden;}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  canvas{background:#12160f;display:block;image-rendering:pixelated;}
+
+  /* ---- overlays ---- */
+  .screen{position:fixed;inset:0;z-index:10;display:none;flex-direction:column;
+    background:radial-gradient(1000px 600px at 50% -10%,#1b2417,transparent 60%),linear-gradient(160deg,#0c0e0d,#10130e);}
+  .screen.show{display:flex;}
+  .wrap{max-width:920px;width:100%;margin:auto;padding:22px;}
+  h1{font-size:clamp(1.6rem,5vw,2.6rem);margin:0;letter-spacing:.14em;color:#cfe0b8;
+    text-shadow:0 0 18px rgba(143,191,90,.35);}
+  h1 .b{color:#c74a3a;}
+  .tagline{color:#8a978a;letter-spacing:.24em;font-size:.72rem;margin:6px 0 18px;text-transform:uppercase;}
+
+  .topbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .money{background:#15190f;border:1px solid #2c3720;border-radius:10px;padding:8px 14px;color:#c7a24a;font-weight:700;letter-spacing:.05em;}
+  .stat2{background:#15190f;border:1px solid #2c3720;border-radius:10px;padding:8px 14px;color:#8a978a;font-size:.8rem;}
+
+  .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+  .tab{background:#171c14;border:1px solid #2c3720;color:#8a978a;border-radius:9px 9px 0 0;
+    padding:10px 16px;cursor:pointer;font-weight:700;letter-spacing:.08em;font-size:.78rem;font-family:inherit;text-transform:uppercase;}
+  .tab.active{background:#22301a;color:#cfe0b8;border-bottom-color:#22301a;box-shadow:inset 0 -2px 0 #8fbf5a;}
+  .tabbody{display:none;background:#12160f;border:1px solid #2c3720;border-radius:0 10px 10px 10px;padding:16px;min-height:280px;max-height:60vh;overflow-y:auto;}
+  .tabbody.show{display:block;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;}
+  .card{background:#171c14;border:1px solid #2c3720;border-radius:10px;padding:12px;}
+  .card h3{margin:0 0 6px;font-size:.92rem;color:#cfe0b8;letter-spacing:.04em;}
+  .card .desc{color:#8a978a;font-size:.74rem;line-height:1.5;min-height:2.2em;}
+  .statline{font-size:.72rem;color:#9fb08f;margin:6px 0;display:flex;flex-wrap:wrap;gap:4px 10px;}
+  .statline span b{color:#cfe0b8;}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid #202719;}
+  .row:last-child{border-bottom:none;}
+  .row .nm{font-size:.84rem;color:#cfe0b8;}
+  .row .sub{font-size:.7rem;color:#8a978a;}
+
+  .btn{background:linear-gradient(180deg,#3a5226,#2a3d1c);border:1px solid #4d6b30;color:#e6f0d8;
+    border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.05em;
+    font-size:.78rem;transition:transform .08s,box-shadow .15s;}
+  .btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 14px rgba(80,120,40,.4);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn.gold{background:linear-gradient(180deg,#6b5620,#4d3f18);border-color:#8a6f26;color:#f0e2b8;}
+  .btn.red{background:linear-gradient(180deg,#5a2620,#3d1a16);border-color:#8a3a2e;color:#f0cabf;}
+  .btn.big{padding:14px 30px;font-size:1rem;letter-spacing:.14em;}
+  .btn.sel{outline:2px solid #8fbf5a;}
+  .btn.equipped{background:linear-gradient(180deg,#5a4a1e,#3d3214);border-color:#c7a24a;color:#f0e2b8;}
+
+  .deploybar{display:flex;gap:14px;align-items:center;justify-content:center;margin-top:16px;flex-wrap:wrap;}
+  .load{display:flex;gap:10px;align-items:center;background:#15190f;border:1px solid #2c3720;border-radius:10px;padding:10px 16px;font-size:.8rem;color:#9fb08f;flex-wrap:wrap;}
+  .load b{color:#cfe0b8;}
+
+  .empty{color:#6f7c6c;font-size:.82rem;padding:20px;text-align:center;}
+  .pill{display:inline-block;background:#22301a;border:1px solid #3a5226;border-radius:20px;padding:2px 9px;font-size:.68rem;color:#9fb08f;margin:2px;}
+  .mod-slot{display:flex;justify-content:space-between;align-items:center;background:#12160f;border:1px solid #263019;border-radius:7px;padding:6px 10px;margin:4px 0;font-size:.76rem;}
+  .mod-slot .mn{color:#9fb08f;}
+  .mod-slot .mv{color:#cfe0b8;}
+
+  /* ---- gunsmith ---- */
+  .gsmith{display:flex;gap:16px;flex-wrap:wrap;}
+  .gs-visual{flex:1;min-width:270px;}
+  .gs-slots{flex:1;min-width:270px;}
+  .gun-canvas{width:100%;height:auto;background:radial-gradient(400px 160px at 50% 40%,#161c11,#0e120b);border:1px solid #2c3720;border-radius:10px;}
+  .statbars{margin-top:12px;}
+  .sb{margin:7px 0;}
+  .sb .lab{display:flex;justify-content:space-between;font-size:.72rem;color:#9fb08f;margin-bottom:2px;}
+  .sb .track{height:9px;background:#20261c;border-radius:5px;overflow:hidden;border:1px solid #2c3720;}
+  .sb .track i{display:block;height:100%;transition:width .15s;}
+  .slotpick{margin-bottom:11px;}
+  .slotpick .sname{font-size:.68rem;color:#8a978a;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px;}
+  .optbtns{display:flex;gap:6px;flex-wrap:wrap;}
+  .opt{background:#171c14;border:1px solid #2c3720;color:#9fb08f;border-radius:7px;padding:6px 10px;font-size:.72rem;cursor:pointer;font-family:inherit;transition:transform .08s;}
+  .opt:hover{transform:translateY(-1px);border-color:#4d6b30;}
+  .opt.on{border-color:#8fbf5a;color:#e6f0d8;background:#22301a;box-shadow:inset 0 0 0 1px #8fbf5a;}
+  .opt.locked{color:#c7a24a;}
+
+  /* ---- in-raid HUD ---- */
+  #hud{position:fixed;left:0;right:0;bottom:0;z-index:5;display:none;padding:10px 14px;pointer-events:none;
+    background:linear-gradient(0deg,rgba(8,10,8,.85),transparent);}
+  #hud.show{display:block;}
+  .hudrow{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;max-width:1200px;margin:0 auto;}
+  .bars{flex:1;max-width:340px;}
+  .bar{height:12px;border-radius:6px;background:#20261c;border:1px solid #303a27;overflow:hidden;margin:5px 0;position:relative;}
+  .bar i{display:block;height:100%;transition:width .12s;}
+  .bar.hp i{background:linear-gradient(90deg,#c74a3a,#e06a52);}
+  .bar.st i{background:linear-gradient(90deg,#4a86c7,#6ab0e0);}
+  .bar b{position:absolute;left:8px;top:-1px;font-size:.62rem;color:#d8e0d5;letter-spacing:.1em;line-height:12px;}
+  .wpn{text-align:center;color:#cfe0b8;}
+  .wpn .name{font-size:.82rem;letter-spacing:.1em;}
+  .wpn .ammo{font-size:1.5rem;font-weight:800;letter-spacing:.05em;}
+  .wpn .ammo small{font-size:.8rem;color:#8a978a;font-weight:600;}
+  .info{text-align:right;font-size:.8rem;color:#9fb08f;line-height:1.6;}
+  .info .timer{font-size:1.2rem;font-weight:800;color:#cfe0b8;letter-spacing:.06em;}
+  .info .timer.warn{color:#c74a3a;}
+  #extractProg{position:fixed;top:16%;left:50%;transform:translateX(-50%);z-index:6;display:none;
+    background:rgba(10,14,8,.85);border:1px solid #4d6b30;border-radius:10px;padding:10px 18px;text-align:center;}
+  #extractProg.show{display:block;}
+  #extractProg .pbar{width:220px;height:10px;background:#20261c;border-radius:5px;overflow:hidden;margin-top:6px;}
+  #extractProg .pbar i{display:block;height:100%;background:#8fbf5a;width:0%;}
+  #toast{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:7;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;}
+  .toast{background:rgba(15,20,12,.9);border:1px solid #3a5226;border-radius:8px;padding:7px 14px;font-size:.8rem;color:#cfe0b8;animation:tfade 2.4s forwards;}
+  @keyframes tfade{0%{opacity:0;transform:translateY(-8px)}12%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
+  .controls{color:#6f7c6c;font-size:.72rem;letter-spacing:.04em;margin-top:14px;line-height:1.7;}
+  .kbd{background:#22301a;border:1px solid #3a5226;border-radius:5px;padding:1px 7px;color:#cfe0b8;font-size:.7rem;}
+  .resultbig{font-size:2.2rem;letter-spacing:.14em;margin:6px 0;}
+  .resultbig.win{color:#8fbf5a;}
+  .resultbig.lose{color:#c74a3a;}
+  .lootlist{background:#12160f;border:1px solid #2c3720;border-radius:10px;padding:12px;margin:12px 0;font-size:.84rem;color:#9fb08f;}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="game"></canvas></div>
+
+<!-- HIDEOUT / MENU -->
+<div class="screen show" id="menu">
+  <div class="wrap">
+    <h1>DEAD<span class="b">·</span>EXTRACT</h1>
+    <div class="tagline">Zombie Extraction Survival</div>
+
+    <div class="topbar">
+      <div class="money">₽ <span id="mMoney">0</span></div>
+      <div class="stat2">Raids: <span id="mRaids">0</span></div>
+      <div class="stat2">Extracted: <span id="mExtracts">0</span></div>
+      <div class="stat2">Kills: <span id="mKills">0</span></div>
+      <button class="btn red" id="wipeBtn" style="margin-left:auto">Wipe Save</button>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="deploy">Deploy</div>
+      <div class="tab" data-tab="shop">Market</div>
+      <div class="tab" data-tab="gunsmith">Gunsmith</div>
+      <div class="tab" data-tab="stash">Stash</div>
+    </div>
+
+    <div class="tabbody show" id="tab-deploy"></div>
+    <div class="tabbody" id="tab-shop"></div>
+    <div class="tabbody" id="tab-gunsmith"></div>
+    <div class="tabbody" id="tab-stash"></div>
+
+    <div class="controls">
+      <span class="kbd">WASD</span> move &nbsp; <span class="kbd">Mouse</span> aim &nbsp;
+      <span class="kbd">LMB</span> shoot &nbsp; <span class="kbd">Shift</span> sprint &nbsp;
+      <span class="kbd">R</span> reload &nbsp; <span class="kbd">H</span> heal &nbsp;
+      <span class="kbd">E</span> loot / extract &nbsp; <span class="kbd">1 2</span> weapons
+    </div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div class="screen" id="result">
+  <div class="wrap" style="text-align:center;max-width:560px;">
+    <div class="resultbig" id="rTitle">EXTRACTED</div>
+    <div id="rSub" style="color:#8a978a;letter-spacing:.1em;font-size:.82rem;"></div>
+    <div class="lootlist" id="rLoot"></div>
+    <button class="btn big" id="rBack">Return to Hideout</button>
+  </div>
+</div>
+
+<!-- IN-RAID HUD -->
+<div id="hud">
+  <div class="hudrow">
+    <div class="bars">
+      <div class="bar hp"><i id="hpFill" style="width:100%"></i><b>HP</b></div>
+      <div class="bar st"><i id="stFill" style="width:100%"></i><b>STAMINA</b></div>
+      <div style="font-size:.74rem;color:#9fb08f;margin-top:4px;">Meds: <b id="hMeds" style="color:#cfe0b8">0</b> &nbsp;|&nbsp; Loot: <b id="hLoot" style="color:#c7a24a">₽0</b></div>
+    </div>
+    <div class="wpn">
+      <div class="name" id="hWpn">—</div>
+      <div class="ammo"><span id="hMag">0</span><small>/<span id="hRes">0</span></small></div>
+    </div>
+    <div class="info">
+      <div class="timer" id="hTimer">30:00</div>
+      <div>Enemies: <span id="hEnemies">0</span></div>
+      <div id="hExtract" style="color:#8fbf5a"></div>
+    </div>
+  </div>
+</div>
+<div id="extractProg"><div style="font-size:.8rem;letter-spacing:.1em;color:#cfe0b8">EXTRACTING…</div><div class="pbar"><i id="extractFill"></i></div></div>
+<div id="toast"></div>
+
+<script>
+(() => {
+"use strict";
+// ============================================================= DATA
+const WEAPONS = {
+  pistol:  {name:"PM Pistol",   dmg:22, rof:280,  mag:12, reload:1100, bs:9,  range:520, auto:false, pellets:1, ammo:"9mm", ergo:68, recoilV:300, recoilH:260, acc:3.0, weight:1.0},
+  smg:     {name:"MP5 SMG",     dmg:17, rof:80,   mag:30, reload:1600, bs:11, range:470, auto:true,  pellets:1, ammo:"9mm", ergo:58, recoilV:120, recoilH:95,  acc:4.2, weight:2.6},
+  shotgun: {name:"Pump Shotgun",dmg:11, rof:720,  mag:6,  reload:2200, bs:8,  range:300, auto:false, pellets:8, ammo:"12g", ergo:42, recoilV:360, recoilH:210, acc:9.0, weight:3.6},
+  rifle:   {name:"AK Rifle",    dmg:35, rof:115,  mag:30, reload:1800, bs:13, range:640, auto:true,  pellets:1, ammo:"545", ergo:46, recoilV:150, recoilH:115, acc:3.6, weight:3.8},
+  sniper:  {name:"Bolt Sniper", dmg:96, rof:1250, mag:5,  reload:2600, bs:22, range:920, auto:false, pellets:1, ammo:"762", ergo:32, recoilV:210, recoilH:70,  acc:0.8, weight:5.6},
+};
+const WEAPON_COST = {pistol:0, smg:12000, shotgun:16000, rifle:28000, sniper:44000};
+const AMMO_COST   = {"9mm":8, "12g":20, "545":16, "762":34}; // per round
+const MED_COST = 3500, MED_HEAL = 60;
+
+// Gunsmith mods (EFT-style). Each mod adjusts ergonomics, recoil, accuracy(MOA), weight, etc.
+const MODS = {
+  muzzle: [
+    {id:"none", name:"No Muzzle", cost:0},
+    {id:"brake", name:"Muzzle Brake", cost:6000, desc:"-18% recoil, slight ergo loss", recoil:0.82, ergo:-2, weight:0.2},
+    {id:"comp", name:"Compensator", cost:11000, desc:"-28% recoil, more ergo loss", recoil:0.72, ergo:-4, weight:0.2},
+    {id:"supp", name:"Suppressor", cost:16000, desc:"-12% recoil, quiet, heavy", recoil:0.88, ergo:-6, acc:-0.2, weight:0.5, stealth:0.55},
+  ],
+  barrel: [
+    {id:"none", name:"Stock Barrel", cost:0},
+    {id:"long", name:"Long Barrel", cost:12000, desc:"+range & accuracy, -ergo", acc:-0.6, rangeMul:1.2, recoil:1.05, ergo:-6, weight:0.6},
+    {id:"short", name:"Short Barrel", cost:8000, desc:"+ergo, -range, +recoil", acc:0.5, rangeMul:0.85, recoil:1.08, ergo:8, weight:-0.3},
+    {id:"heavy", name:"Heavy Barrel", cost:20000, desc:"+damage & accuracy, heavy", acc:-0.4, dmgMul:1.15, ergo:-5, weight:0.8},
+  ],
+  handguard: [
+    {id:"none", name:"Stock Handguard", cost:0},
+    {id:"tac", name:"Tactical Handguard", cost:7000, desc:"+6 ergonomics", ergo:6, weight:0.2},
+    {id:"rail", name:"Rail Handguard", cost:10000, desc:"+3 ergo, -6% recoil", ergo:3, recoil:0.94, weight:0.3},
+  ],
+  sight: [
+    {id:"none", name:"Iron Sights", cost:0},
+    {id:"reddot", name:"Red Dot", cost:5000, desc:"+accuracy", acc:-0.4, ergo:-1, weight:0.1},
+    {id:"holo", name:"Holographic", cost:9000, desc:"+more accuracy", acc:-0.55, ergo:-2, weight:0.2},
+    {id:"scope", name:"4x Scope", cost:14000, desc:"+accuracy & range", acc:-0.8, rangeMul:1.15, ergo:-4, weight:0.4},
+  ],
+  tactical: [
+    {id:"none", name:"No Tactical", cost:0},
+    {id:"laser", name:"Laser Sight", cost:6000, desc:"+accuracy", acc:-0.35, ergo:-1, weight:0.1},
+    {id:"light", name:"Tac Light", cost:4000, desc:"Small ergo cost", ergo:-1, weight:0.1},
+  ],
+  pistolgrip: [
+    {id:"none", name:"Stock Grip", cost:0},
+    {id:"ergo", name:"Ergonomic Grip", cost:7000, desc:"+8 ergo, -4% recoil", ergo:8, recoil:0.96, weight:0.1},
+    {id:"skel", name:"Skeleton Grip", cost:12000, desc:"+12 ergo, +5% recoil", ergo:12, recoil:1.05, weight:-0.1},
+  ],
+  stock: [
+    {id:"none", name:"No Stock", cost:0},
+    {id:"full", name:"Full Stock", cost:9000, desc:"-22% recoil, -ergo", recoil:0.78, ergo:-3, weight:0.5},
+    {id:"adj", name:"Adjustable Stock", cost:15000, desc:"-25% recoil, +ergo", recoil:0.75, ergo:2, weight:0.4},
+    {id:"fold", name:"Folding Stock", cost:11000, desc:"-12% recoil, +ergo", recoil:0.88, ergo:5, weight:0.2},
+  ],
+  magazine: [
+    {id:"none", name:"Standard Mag", cost:0},
+    {id:"poly", name:"Polymer Mag", cost:6000, desc:"+30% mag, faster reload", magMul:1.3, ergo:-1, reloadMul:0.9, weight:0.1},
+    {id:"ext", name:"Extended Mag", cost:9000, desc:"+60% mag, -ergo", magMul:1.6, ergo:-5, weight:0.3},
+    {id:"drum", name:"Drum Mag", cost:18000, desc:"+130% mag, heavy, -ergo", magMul:2.3, ergo:-12, reloadMul:1.25, weight:0.9},
+  ],
+};
+const MOD_SLOTS = ["muzzle","barrel","handguard","sight","tactical","pistolgrip","stock","magazine"];
+
+// ============================================================= SAVE
+const SKEY = "deadextract_save_v1";
+let save;
+function defaultSave(){
+  return { money:45000, raids:0, extracts:0, kills:0,
+    owned:{pistol:true}, ammo:{"9mm":96,"12g":0,"545":0,"762":0}, meds:2,
+    loadout:{weapon:"pistol"}, mods:{} };
+}
+function loadSave(){
+  try{ const r=localStorage.getItem(SKEY); save = r?JSON.parse(r):defaultSave(); }
+  catch(e){ save=defaultSave(); }
+  // integrity
+  const d=defaultSave();
+  for(const k in d) if(save[k]===undefined) save[k]=d[k];
+  if(!save.owned.pistol) save.owned.pistol=true;
+}
+function persist(){ try{ localStorage.setItem(SKEY, JSON.stringify(save)); }catch(e){} }
+
+// resolved weapon stats after mods
+function modsFor(wid){
+  const m = save.mods[wid] || {};
+  MOD_SLOTS.forEach(s=>{ if(m[s]===undefined) m[s]="none"; });
+  return m;
+}
+function resolvedWeapon(wid){
+  const base = WEAPONS[wid];
+  const w = Object.assign({}, base);
+  const chosen = modsFor(wid);
+  let ergo=base.ergo, recoilMul=1, acc=base.acc, weight=base.weight, stealth=1;
+  MOD_SLOTS.forEach(slot=>{
+    const mid = chosen[slot];
+    const mod = MODS[slot].find(x=>x.id===mid);
+    if(!mod) return;
+    if(mod.ergo)     ergo += mod.ergo;
+    if(mod.recoil)   recoilMul *= mod.recoil;
+    if(mod.acc)      acc += mod.acc;
+    if(mod.weight)   weight += mod.weight;
+    if(mod.magMul)   w.mag = Math.round(w.mag*mod.magMul);
+    if(mod.reloadMul)w.reload = Math.round(w.reload*mod.reloadMul);
+    if(mod.rangeMul) w.range = Math.round(w.range*mod.rangeMul);
+    if(mod.dmgMul)   w.dmg = Math.round(w.dmg*mod.dmgMul);
+    if(mod.stealth)  stealth *= mod.stealth;
+  });
+  ergo = clamp(Math.round(ergo),1,120);
+  acc = Math.max(0.3, Math.round(acc*10)/10);
+  w.ergo=ergo;
+  w.recoilV = Math.round(base.recoilV*recoilMul);
+  w.recoilH = Math.round(base.recoilH*recoilMul);
+  w.acc=acc; w.weight=Math.round(weight*10)/10; w.stealth=stealth; w.id=wid;
+  // derived gameplay values
+  w.baseSpread = Math.max(0.006, acc*0.007);
+  w.recoilPerShot = (w.recoilV/100)*0.02;               // spread bloom added per shot
+  w.recoilMax = (w.recoilV/100)*0.05 + w.baseSpread*2;  // cap on bloom
+  w.reload = Math.round(w.reload * clamp(1.4 - ergo/120, 0.6, 1.4)); // ergo speeds reload
+  return w;
+}
+
+// ============================================================= CANVAS
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+let VW=960, VH=600;
+function resize(){
+  VW = Math.min(window.innerWidth, 1280);
+  VH = Math.min(window.innerHeight, 760);
+  canvas.width=VW; canvas.height=VH;
+}
+window.addEventListener("resize", resize); resize();
+
+// ============================================================= WORLD
+const WORLD = {w:2600, h:2000};
+let state = "menu";
+let player, enemies, bullets, ebullets, crates, walls, extracts, particles, cam;
+let raidTime, lastSpawn, extractProgress, extractZone, raidBag, screenShake, running=false;
+
+function rr(a,b){ return a + Math.random()*(b-a); }
+function dist2(ax,ay,bx,by){ const dx=ax-bx,dy=ay-by; return dx*dx+dy*dy; }
+function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+
+function circleRect(cx,cy,cr,r){
+  const nx=clamp(cx,r.x,r.x+r.w), ny=clamp(cy,r.y,r.y+r.h);
+  const dx=cx-nx, dy=cy-ny; return dx*dx+dy*dy < cr*cr;
+}
+function resolveWalls(o){
+  for(const r of walls){
+    if(circleRect(o.x,o.y,o.r,r)){
+      const nx=clamp(o.x,r.x,r.x+r.w), ny=clamp(o.y,r.y,r.y+r.h);
+      let dx=o.x-nx, dy=o.y-ny; let d=Math.hypot(dx,dy)||0.001;
+      const push=o.r-d;
+      o.x += (dx/d)*push; o.y += (dy/d)*push;
+    }
+  }
+  o.x=clamp(o.x,o.r,WORLD.w-o.r); o.y=clamp(o.y,o.r,WORLD.h-o.r);
+}
+function lineHitsWall(x0,y0,x1,y1){
+  for(const r of walls){
+    if(segRect(x0,y0,x1,y1,r)) return true;
+  }
+  return false;
+}
+function segRect(x0,y0,x1,y1,r){
+  // quick: sample; fine for gameplay
+  const steps=Math.max(1,Math.floor(Math.hypot(x1-x0,y1-y0)/12));
+  for(let i=0;i<=steps;i++){
+    const t=i/steps, x=x0+(x1-x0)*t, y=y0+(y1-y0)*t;
+    if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h) return true;
+  }
+  return false;
+}
+
+// ============================================================= START RAID
+function startRaid(){
+  const wid = save.loadout.weapon;
+  const w = resolvedWeapon(wid);
+  const type = w.ammo;
+  const bring = Math.min(save.ammo[type]||0, w.mag*5);
+  save.ammo[type] = (save.ammo[type]||0) - bring; // taken into raid
+  const magLoad = Math.min(w.mag, bring);
+  player = {
+    x:WORLD.w/2, y:WORLD.h/2, r:14, angle:0, hp:100, maxhp:100,
+    stamina:100, speed:2.9, weapon:w, mag:magLoad, reserve:bring-magLoad,
+    meds:save.meds, bringMeds:save.meds, reloading:false, healing:0, lastShot:0, recoilHeat:0,
+    ammoType:type
+  };
+  save.meds = 0; // brought into raid
+  enemies=[]; bullets=[]; ebullets=[]; particles=[];
+  crates=[]; walls=[]; extracts=[];
+  raidTime=1800; lastSpawn=0; extractProgress=0; extractZone=null; screenShake=0;
+  raidBag={money:0, ammo:{}, meds:0, killed:0};
+  buildMap();
+  for(let i=0;i<20;i++) spawnEnemy(true);
+  cam={x:0,y:0};
+  state="raid";
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("show"));
+  document.getElementById("hud").classList.add("show");
+  persist();
+  if(!running){ running=true; requestAnimationFrame(loop); }
+}
+
+function buildMap(){
+  // border walls
+  const T=40;
+  walls.push({x:-T,y:-T,w:WORLD.w+2*T,h:T});
+  walls.push({x:-T,y:WORLD.h,w:WORLD.w+2*T,h:T});
+  walls.push({x:-T,y:0,w:T,h:WORLD.h});
+  walls.push({x:WORLD.w,y:0,w:T,h:WORLD.h});
+  // building clusters / cover
+  const blocks=[
+    [300,300,220,60],[300,300,60,260],[900,200,60,300],[1300,420,300,60],
+    [1800,300,60,280],[600,900,260,60],[1100,1000,60,260],[1600,1150,300,60],
+    [2000,800,60,300],[400,1400,300,60],[900,1500,60,300],[1500,1600,260,60],
+    [2100,1500,60,260],[700,600,60,180],[1900,1100,180,60],[1200,700,60,200]
+  ];
+  blocks.forEach(b=>walls.push({x:b[0],y:b[1],w:b[2],h:b[3]}));
+  // crates
+  let tries=0;
+  while(crates.length<16 && tries<400){
+    tries++;
+    const x=rr(120,WORLD.w-120), y=rr(120,WORLD.h-120);
+    if(walls.some(r=>circleRect(x,y,26,r))) continue;
+    if(dist2(x,y,WORLD.w/2,WORLD.h/2)<200*200) continue;
+    crates.push({x,y,r:15,open:false,opening:0});
+  }
+  // extraction zones (corners)
+  extracts.push({x:80,y:80,w:150,h:150,name:"NW Drain"});
+  extracts.push({x:WORLD.w-230,y:WORLD.h-230,w:150,h:150,name:"SE Gate"});
+  extracts.push({x:WORLD.w-230,y:80,w:150,h:150,name:"NE Rooftop"});
+}
+
+function spawnEnemy(anywhere){
+  let x,y,tries=0;
+  do{
+    if(anywhere){ x=rr(100,WORLD.w-100); y=rr(100,WORLD.h-100); }
+    else{
+      // spawn at edge
+      const s=Math.floor(rr(0,4));
+      if(s===0){x=rr(100,WORLD.w-100);y=100;} else if(s===1){x=rr(100,WORLD.w-100);y=WORLD.h-100;}
+      else if(s===2){x=100;y=rr(100,WORLD.h-100);} else {x=WORLD.w-100;y=rr(100,WORLD.h-100);}
+    }
+    tries++;
+  } while(tries<20 && (walls.some(r=>circleRect(x,y,16,r)) || (player && dist2(x,y,player.x,player.y)<420*420)));
+  const roll=Math.random();
+  let e;
+  if(roll<0.55) e={type:"zombie", x,y,r:14, hp:60,maxhp:60, speed:rr(0.7,1.0), dmg:12, atk:0, aggro:340, col:"#5f8a3a"};
+  else if(roll<0.82) e={type:"runner", x,y,r:11, hp:30,maxhp:30, speed:rr(2.3,2.9), dmg:8, atk:0, aggro:460, col:"#c74a3a"};
+  else e={type:"spitter", x,y,r:13, hp:46,maxhp:46, speed:1.0, dmg:16, atk:0, aggro:520, col:"#9a5ac7", shoot:0, keep:250};
+  enemies.push(e);
+}
+
+// ============================================================= INPUT
+const keys={};
+let mouse={x:0,y:0,down:false};
+window.addEventListener("keydown",e=>{
+  if(state!=="raid") return;
+  keys[e.key.toLowerCase()]=true;
+  if(e.key.toLowerCase()==="r") startReload();
+  if(e.key.toLowerCase()==="h") startHeal();
+  if(e.key.toLowerCase()==="e") interact();
+  if(["w","a","s","d"," "].includes(e.key.toLowerCase())) e.preventDefault();
+});
+window.addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
+canvas.addEventListener("mousemove",e=>{
+  const rect=canvas.getBoundingClientRect();
+  mouse.x=e.clientX-rect.left; mouse.y=e.clientY-rect.top;
+});
+canvas.addEventListener("mousedown",e=>{ if(e.button===0) mouse.down=true; });
+window.addEventListener("mouseup",e=>{ if(e.button===0) mouse.down=false; });
+canvas.addEventListener("contextmenu",e=>e.preventDefault());
+
+function startReload(){
+  const p=player; if(p.reloading||p.mag>=p.weapon.mag||p.reserve<=0) return;
+  p.reloading=true;
+  setTimeout(()=>{
+    if(state!=="raid") return;
+    const need=p.weapon.mag-p.mag, take=Math.min(need,p.reserve);
+    p.mag+=take; p.reserve-=take; p.reloading=false;
+  }, p.weapon.reload);
+  toast("Reloading…");
+}
+function startHeal(){
+  const p=player; if(p.healing>0||p.meds<=0||p.hp>=p.maxhp) return;
+  p.meds--; p.healing=1600;
+  toast("Using medkit…");
+}
+function interact(){
+  const p=player;
+  // loot crate
+  for(const c of crates){
+    if(!c.open && dist2(p.x,p.y,c.x,c.y)<44*44){
+      openCrate(c); return;
+    }
+  }
+}
+function openCrate(c){
+  c.open=true;
+  const rolls=Math.floor(rr(1,3));
+  let msg=[];
+  for(let i=0;i<rolls;i++){
+    const r=Math.random();
+    if(r<0.4){ const v=Math.floor(rr(800,3500)); raidBag.money+=v; msg.push("₽"+v); }
+    else if(r<0.7){ const t=player.ammoType; const n=Math.floor(rr(15,40)); raidBag.ammo[t]=(raidBag.ammo[t]||0)+n; player.reserve+=n; msg.push(n+" "+t); }
+    else if(r<0.9){ raidBag.meds++; player.meds++; msg.push("Medkit"); }
+    else { const v=Math.floor(rr(4000,9000)); raidBag.money+=v; msg.push("Valuables ₽"+v); }
+  }
+  // spark particles
+  for(let i=0;i<12;i++) particles.push({x:c.x,y:c.y,vx:rr(-2,2),vy:rr(-2,2),life:30,col:"#c7a24a"});
+  toast("Looted: "+msg.join(", "));
+}
+
+// ============================================================= COMBAT
+function fire(){
+  const p=player, now=performance.now();
+  if(p.reloading || p.healing>0) return;
+  if(now-p.lastShot < p.weapon.rof) return;
+  if(p.mag<=0){ if(p.reserve>0) startReload(); else toast("Click — empty!"); p.lastShot=now; return; }
+  p.lastShot=now; p.mag--;
+  const w=p.weapon;
+  const spread = w.baseSpread + (p.recoilHeat||0);   // recoil bloom grows with sustained fire
+  for(let i=0;i<w.pellets;i++){
+    const sp=(Math.random()-0.5)*spread*2;
+    const a=p.angle+sp;
+    bullets.push({x:p.x+Math.cos(p.angle)*18, y:p.y+Math.sin(p.angle)*18,
+      vx:Math.cos(a)*w.bs, vy:Math.sin(a)*w.bs, life:w.range/w.bs, dmg:w.dmg});
+  }
+  p.recoilHeat = Math.min(w.recoilMax, (p.recoilHeat||0) + w.recoilPerShot);
+  // muzzle flash + shake + recoil
+  particles.push({x:p.x+Math.cos(p.angle)*22,y:p.y+Math.sin(p.angle)*22,vx:Math.cos(p.angle)*2,vy:Math.sin(p.angle)*2,life:6,col:"#ffd98a",flash:true});
+  screenShake=Math.min(6, screenShake+ (w.pellets>1?4:2));
+  // noise aggro
+  const noiseR = 260 * (w.stealth||1) * (w.pellets>1?1.4:1);
+  for(const e of enemies){ if(dist2(e.x,e.y,p.x,p.y) < noiseR*noiseR) e.alert=performance.now(); }
+}
+
+// ============================================================= UPDATE
+let last=0;
+function loop(t){
+  const dt = Math.min(33, t-(last||t)); last=t;
+  if(state==="raid"){ update(dt/16.6667, t); render(); }
+  requestAnimationFrame(loop);
+}
+
+function update(dt, t){
+  const p=player;
+  // timer
+  raidTime -= dt/60;
+  if(raidTime<=0){ endRaid(false,"Lost — failed to extract in time"); return; }
+
+  // movement
+  let mx=0,my=0;
+  if(keys["w"])my-=1; if(keys["s"])my+=1; if(keys["a"])mx-=1; if(keys["d"])mx+=1;
+  const moving=(mx||my);
+  const sprint = keys["shift"] && p.stamina>0 && moving && p.healing<=0;
+  if(moving){ const l=Math.hypot(mx,my); mx/=l; my/=l; }
+  let spd=p.speed*(sprint?1.7:1)*(p.healing>0?0.4:1);
+  p.x+=mx*spd*dt; p.y+=my*spd*dt;
+  resolveWalls(p);
+  if(sprint) p.stamina=Math.max(0,p.stamina-0.9*dt);
+  else p.stamina=Math.min(100,p.stamina+0.5*dt);
+  p.recoilHeat=(p.recoilHeat||0)*Math.pow(0.9,dt);   // recoil recovers when not firing
+
+  // aim
+  p.angle=Math.atan2((mouse.y+cam.y)-p.y,(mouse.x+cam.x)-p.x);
+  // healing
+  if(p.healing>0){ p.healing-=dt*16.6667; if(p.healing<=0){ p.hp=Math.min(p.maxhp,p.hp+MED_HEAL); toast("Healed +"+MED_HEAL); } }
+  // shooting
+  if(mouse.down){ if(p.weapon.auto) fire(); else if(!p._heldTrigger) fire(); p._heldTrigger=true; }
+  else p._heldTrigger=false;
+
+  // bullets
+  for(const b of bullets){
+    b.x+=b.vx; b.y+=b.vy; b.life--;
+    if(lineHitsWall(b.x-b.vx,b.y-b.vy,b.x,b.y)){ b.life=0; particles.push({x:b.x,y:b.y,vx:0,vy:0,life:8,col:"#9a9a8a"}); continue; }
+    for(const e of enemies){
+      if(e.hp>0 && dist2(b.x,b.y,e.x,e.y) < (e.r+3)*(e.r+3)){
+        e.hp-=b.dmg; b.life=0; e.alert=t;
+        for(let i=0;i<6;i++) particles.push({x:e.x,y:e.y,vx:rr(-2.5,2.5),vy:rr(-2.5,2.5),life:18,col:"#8a2f1f"});
+        if(e.hp<=0){ killEnemy(e); }
+        break;
+      }
+    }
+  }
+  bullets=bullets.filter(b=>b.life>0);
+
+  // enemy bullets
+  for(const b of ebullets){
+    b.x+=b.vx; b.y+=b.vy; b.life--;
+    if(lineHitsWall(b.x-b.vx,b.y-b.vy,b.x,b.y)){ b.life=0; continue; }
+    if(dist2(b.x,b.y,p.x,p.y)<(p.r+4)*(p.r+4)){ b.life=0; hurt(b.dmg); }
+  }
+  ebullets=ebullets.filter(b=>b.life>0);
+
+  // enemies AI
+  for(const e of enemies){
+    if(e.hp<=0) continue;
+    const d2=dist2(e.x,e.y,p.x,p.y);
+    const aggro = (e.alert && t-e.alert<4000) ? e.aggro*1.6 : e.aggro;
+    const active = d2 < aggro*aggro;
+    if(e.type==="spitter"){
+      if(active){
+        const d=Math.sqrt(d2);
+        // maintain distance
+        const dir = d < e.keep-30 ? -1 : d > e.keep+30 ? 1 : 0;
+        const a=Math.atan2(p.y-e.y,p.x-e.x);
+        e.x+=Math.cos(a)*e.speed*dir*dt; e.y+=Math.sin(a)*e.speed*dir*dt;
+        resolveWalls(e);
+        e.shoot=(e.shoot||0)+dt*16.6667;
+        if(e.shoot>1500 && !lineHitsWall(e.x,e.y,p.x,p.y)){
+          e.shoot=0;
+          ebullets.push({x:e.x,y:e.y,vx:Math.cos(a)*6,vy:Math.sin(a)*6,life:90,dmg:e.dmg});
+        }
+      }
+    } else {
+      if(active){
+        const a=Math.atan2(p.y-e.y,p.x-e.x);
+        const ox=e.x, oy=e.y;
+        e.x+=Math.cos(a)*e.speed*dt; e.y+=Math.sin(a)*e.speed*dt;
+        resolveWalls(e);
+        // if stuck, try sliding
+        if(Math.abs(e.x-ox)<0.05 && Math.abs(e.y-oy)<0.05){
+          e.x+=Math.cos(a+1.4)*e.speed*dt; e.y+=Math.sin(a+1.4)*e.speed*dt; resolveWalls(e);
+        }
+      }
+    }
+    // contact melee
+    if(e.type!=="spitter" && d2<(e.r+p.r)*(e.r+p.r)){
+      e.atk=(e.atk||0)+dt*16.6667;
+      if(e.atk>600){ e.atk=0; hurt(e.dmg); screenShake=Math.min(8,screenShake+3); }
+    }
+  }
+  enemies=enemies.filter(e=>e.hp>0);
+
+  // spawns
+  lastSpawn+=dt*16.6667;
+  const target = 18 + Math.floor((1800-raidTime)/45);
+  if(lastSpawn>1400 && enemies.length<target){ lastSpawn=0; spawnEnemy(false); }
+
+  // particles
+  for(const pt of particles){ pt.x+=pt.vx; pt.y+=pt.vy; pt.vx*=0.9; pt.vy*=0.9; pt.life--; }
+  particles=particles.filter(pt=>pt.life>0);
+
+  // crates opening handled in interact
+  // extraction check
+  extractZone=null;
+  for(const z of extracts){
+    if(p.x>z.x&&p.x<z.x+z.w&&p.y>z.y&&p.y<z.y+z.h){ extractZone=z; break; }
+  }
+  if(extractZone){
+    extractProgress+=dt/60;
+    if(extractProgress>=4){ endRaid(true,"Extracted via "+extractZone.name); return; }
+  } else extractProgress=Math.max(0,extractProgress-dt/30);
+
+  if(screenShake>0) screenShake*=0.86;
+  // camera
+  cam.x=clamp(p.x-VW/2,0,WORLD.w-VW);
+  cam.y=clamp(p.y-VH/2,0,WORLD.h-VH);
+
+  if(p.hp<=0) endRaid(false,"Killed in action");
+  updateHUD();
+}
+
+function hurt(d){ const p=player; if(p.hp<=0) return; p.hp-=d; screenShake=Math.min(9,screenShake+2);
+  for(let i=0;i<4;i++) particles.push({x:p.x,y:p.y,vx:rr(-2,2),vy:rr(-2,2),life:12,col:"#c74a3a"});
+}
+function killEnemy(e){ raidBag.killed++; for(let i=0;i<10;i++) particles.push({x:e.x,y:e.y,vx:rr(-3,3),vy:rr(-3,3),life:22,col:"#8a2f1f"}); toast(e.type+" down"); }
+
+function endRaid(success, reason){
+  state="ended";
+  const p=player;
+  document.getElementById("hud").classList.remove("show");
+  document.getElementById("extractProg").classList.remove("show");
+  save.raids++;
+  save.kills += raidBag.killed;
+  const lootLines=[];
+  if(success){
+    save.extracts++;
+    save.money += raidBag.money;
+    // return brought+looted ammo and meds
+    const t=p.ammoType;
+    save.ammo[t] = (save.ammo[t]||0) + p.mag + p.reserve;
+    save.meds += p.meds;
+    lootLines.push("Cash secured: ₽"+raidBag.money);
+    lootLines.push("Ammo returned: "+(p.mag+p.reserve)+" "+t);
+    lootLines.push("Medkits: "+p.meds);
+    lootLines.push("Kills: "+raidBag.killed);
+  } else {
+    // lose everything brought + looted (ammo/meds already deducted at deploy)
+    lootLines.push("LOST all ammo and medkits taken into the raid");
+    lootLines.push("Looted cash forfeited: ₽"+raidBag.money);
+    lootLines.push("Kills: "+raidBag.killed);
+  }
+  persist();
+  showResult(success, reason, lootLines);
+}
+
+// ============================================================= RENDER
+function render(){
+  ctx.clearRect(0,0,VW,VH);
+  ctx.save();
+  let sx=0,sy=0;
+  if(screenShake>0.3){ sx=rr(-screenShake,screenShake); sy=rr(-screenShake,screenShake); }
+  ctx.translate(-cam.x+sx,-cam.y+sy);
+
+  // ground grid
+  ctx.fillStyle="#12160f"; ctx.fillRect(0,0,WORLD.w,WORLD.h);
+  ctx.strokeStyle="#181d13"; ctx.lineWidth=1;
+  for(let x=0;x<WORLD.w;x+=80){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,WORLD.h);ctx.stroke(); }
+  for(let y=0;y<WORLD.h;y+=80){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(WORLD.w,y);ctx.stroke(); }
+
+  // extraction zones
+  for(const z of extracts){
+    const on = extractZone===z;
+    ctx.fillStyle = on? "rgba(143,191,90,0.28)":"rgba(143,191,90,0.10)";
+    ctx.fillRect(z.x,z.y,z.w,z.h);
+    ctx.strokeStyle="#8fbf5a"; ctx.lineWidth=2; ctx.setLineDash([8,6]);
+    ctx.strokeRect(z.x,z.y,z.w,z.h); ctx.setLineDash([]);
+    ctx.fillStyle="#8fbf5a"; ctx.font="12px monospace"; ctx.textAlign="center";
+    ctx.fillText("EXTRACT: "+z.name, z.x+z.w/2, z.y+z.h/2);
+  }
+
+  // crates
+  for(const c of crates){
+    ctx.fillStyle=c.open?"#3a3320":"#6b5a2a";
+    ctx.fillRect(c.x-15,c.y-15,30,30);
+    ctx.strokeStyle=c.open?"#2a2618":"#c7a24a"; ctx.lineWidth=2;
+    ctx.strokeRect(c.x-15,c.y-15,30,30);
+    if(!c.open){ ctx.strokeStyle="#8a6f26"; ctx.beginPath();ctx.moveTo(c.x-15,c.y);ctx.lineTo(c.x+15,c.y);ctx.stroke(); }
+  }
+
+  // walls
+  for(const r of walls){
+    ctx.fillStyle="#2a3322"; ctx.fillRect(r.x,r.y,r.w,r.h);
+    ctx.strokeStyle="#3c4a30"; ctx.lineWidth=2; ctx.strokeRect(r.x,r.y,r.w,r.h);
+  }
+
+  // bullets
+  ctx.fillStyle="#ffe08a";
+  for(const b of bullets){ ctx.fillRect(b.x-2,b.y-2,4,4); }
+  ctx.fillStyle="#c78aff";
+  for(const b of ebullets){ ctx.beginPath();ctx.arc(b.x,b.y,4,0,7);ctx.fill(); }
+
+  // enemies
+  for(const e of enemies){
+    ctx.fillStyle=e.col;
+    ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,7); ctx.fill();
+    ctx.strokeStyle="rgba(0,0,0,.4)"; ctx.lineWidth=2; ctx.stroke();
+    if(e.type==="spitter"){ ctx.fillStyle="#e0c0ff"; ctx.beginPath();ctx.arc(e.x,e.y,4,0,7);ctx.fill(); }
+    // hp bar
+    if(e.hp<e.maxhp){ ctx.fillStyle="#000"; ctx.fillRect(e.x-e.r,e.y-e.r-7,e.r*2,3);
+      ctx.fillStyle="#c74a3a"; ctx.fillRect(e.x-e.r,e.y-e.r-7,e.r*2*(e.hp/e.maxhp),3); }
+  }
+
+  // player
+  const p=player;
+  ctx.fillStyle="#cfe0b8"; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill();
+  ctx.strokeStyle="#5a6b45"; ctx.lineWidth=3; ctx.stroke();
+  // gun barrel
+  ctx.strokeStyle="#20261c"; ctx.lineWidth=5; ctx.beginPath();
+  ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+Math.cos(p.angle)*22,p.y+Math.sin(p.angle)*22); ctx.stroke();
+  if(p.healing>0){ ctx.strokeStyle="#6ab0e0"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(p.x,p.y,p.r+6,0,7*(1-p.healing/1600)); ctx.stroke(); }
+
+  // particles
+  for(const pt of particles){
+    ctx.globalAlpha=Math.max(0,pt.life/22);
+    ctx.fillStyle=pt.col;
+    const s=pt.flash?6:3; ctx.fillRect(pt.x-s/2,pt.y-s/2,s,s);
+  }
+  ctx.globalAlpha=1;
+
+  ctx.restore();
+
+  // vignette when low hp
+  if(p.hp<40){ ctx.fillStyle="rgba(199,74,58,"+(0.35*(1-p.hp/40))+")"; ctx.fillRect(0,0,VW,VH); }
+
+  drawMinimap();
+  // extract progress bar
+  const ep=document.getElementById("extractProg");
+  if(extractZone){ ep.classList.add("show"); document.getElementById("extractFill").style.width=(extractProgress/4*100)+"%"; }
+  else ep.classList.remove("show");
+}
+
+function drawMinimap(){
+  const mw=170, mh=Math.round(170*WORLD.h/WORLD.w), px=VW-mw-12, py=12;
+  ctx.fillStyle="rgba(10,14,8,.82)"; ctx.fillRect(px,py,mw,mh);
+  ctx.strokeStyle="#3a5226"; ctx.lineWidth=1; ctx.strokeRect(px,py,mw,mh);
+  const sx=mw/WORLD.w, sy=mh/WORLD.h;
+  // extracts
+  ctx.fillStyle="#8fbf5a";
+  for(const z of extracts) ctx.fillRect(px+z.x*sx,py+z.y*sy,Math.max(3,z.w*sx),Math.max(3,z.h*sy));
+  // crates
+  ctx.fillStyle="#c7a24a";
+  for(const c of crates) if(!c.open) ctx.fillRect(px+c.x*sx-1,py+c.y*sy-1,2,2);
+  // enemies
+  for(const e of enemies){ ctx.fillStyle=e.col; ctx.fillRect(px+e.x*sx-1,py+e.y*sy-1,2,2); }
+  // player
+  ctx.fillStyle="#fff"; ctx.fillRect(px+player.x*sx-2,py+player.y*sy-2,4,4);
+}
+
+// ============================================================= HUD
+function updateHUD(){
+  const p=player;
+  document.getElementById("hpFill").style.width=clamp(p.hp,0,100)+"%";
+  document.getElementById("stFill").style.width=p.stamina+"%";
+  document.getElementById("hMeds").textContent=p.meds;
+  document.getElementById("hLoot").textContent="₽"+raidBag.money;
+  document.getElementById("hWpn").textContent=p.weapon.name+(p.reloading?" (reloading)":"");
+  document.getElementById("hMag").textContent=p.mag;
+  document.getElementById("hRes").textContent=p.reserve;
+  document.getElementById("hEnemies").textContent=enemies.length;
+  const mm=Math.floor(raidTime/60), ss=Math.floor(raidTime%60);
+  const tEl=document.getElementById("hTimer");
+  tEl.textContent=mm+":"+(ss<10?"0":"")+ss;
+  tEl.classList.toggle("warn", raidTime<60);
+  document.getElementById("hExtract").textContent = extractZone? "EXTRACTING "+Math.floor(extractProgress/4*100)+"%" : "";
+}
+let toastTimer=[];
+function toast(msg){
+  const box=document.getElementById("toast");
+  const el=document.createElement("div"); el.className="toast"; el.textContent=msg;
+  box.appendChild(el); setTimeout(()=>el.remove(),2400);
+}
+
+// ============================================================= MENU / TABS
+function fmt(n){ return n.toLocaleString(); }
+function refreshTop(){
+  document.getElementById("mMoney").textContent=fmt(save.money);
+  document.getElementById("mRaids").textContent=save.raids;
+  document.getElementById("mExtracts").textContent=save.extracts;
+  document.getElementById("mKills").textContent=save.kills;
+}
+document.querySelectorAll(".tab").forEach(tab=>{
+  tab.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    document.querySelectorAll(".tabbody").forEach(b=>b.classList.remove("show"));
+    tab.classList.add("active");
+    document.getElementById("tab-"+tab.dataset.tab).classList.add("show");
+    renderTab(tab.dataset.tab);
+  });
+});
+function renderTab(which){
+  if(which==="deploy") renderDeploy();
+  else if(which==="shop") renderShop();
+  else if(which==="gunsmith") renderGunsmith();
+  else if(which==="stash") renderStash();
+}
+
+function renderDeploy(){
+  const box=document.getElementById("tab-deploy");
+  const owned=Object.keys(WEAPONS).filter(w=>save.owned[w]);
+  let h='<div style="color:#8a978a;font-size:.8rem;margin-bottom:10px;">Choose your primary. Ammo &amp; medkits in your stash are taken into the raid — <b style="color:#c74a3a">lose them if you die.</b></div>';
+  h+='<div class="grid">';
+  owned.forEach(wid=>{
+    const w=resolvedWeapon(wid); const sel=save.loadout.weapon===wid;
+    const haveAmmo=save.ammo[w.ammo]||0;
+    h+=`<div class="card"><h3>${w.name}</h3>
+      <div class="statline"><span>DMG <b>${w.dmg}</b></span><span>MAG <b>${w.mag}</b></span><span>RPM <b>${Math.round(60000/w.rof)}</b></span><span>RNG <b>${w.range}</b></span></div>
+      <div class="statline"><span>ERGO <b>${w.ergo}</b></span><span>RECOIL <b>${w.recoilV}</b></span><span>MOA <b>${w.acc}</b></span></div>
+      <div class="statline"><span>Ammo <b>${w.ammo}</b>: ${haveAmmo} in stash</span></div>
+      <button class="btn ${sel?'sel equipped':''}" data-pick="${wid}">${sel?'DEPLOYING WITH THIS':'Select'}</button></div>`;
+  });
+  h+='</div>';
+  h+=`<div class="deploybar">
+      <div class="load">Loadout: <b>${resolvedWeapon(save.loadout.weapon).name}</b> · Ammo <b>${save.ammo[resolvedWeapon(save.loadout.weapon).ammo]||0}</b> · Medkits <b>${save.meds}</b></div>
+      <button class="btn big gold" id="deployBtn">DEPLOY INTO RAID</button></div>`;
+  box.innerHTML=h;
+  box.querySelectorAll("[data-pick]").forEach(b=>b.addEventListener("click",()=>{ save.loadout.weapon=b.dataset.pick; persist(); renderDeploy(); }));
+  document.getElementById("deployBtn").addEventListener("click",()=>{
+    const w=resolvedWeapon(save.loadout.weapon);
+    if((save.ammo[w.ammo]||0)<=0){ toast("No "+w.ammo+" ammo! Buy some in the Market."); return; }
+    startRaid();
+  });
+}
+
+function renderShop(){
+  const box=document.getElementById("tab-shop");
+  let h='<div style="color:#8a978a;font-size:.8rem;margin-bottom:10px;">WEAPONS</div><div class="grid">';
+  Object.keys(WEAPONS).forEach(wid=>{
+    const w=WEAPONS[wid]; const owned=save.owned[wid]; const cost=WEAPON_COST[wid];
+    h+=`<div class="card"><h3>${w.name}</h3>
+      <div class="statline"><span>DMG <b>${w.dmg}</b></span><span>MAG <b>${w.mag}</b></span><span>RPM <b>${Math.round(60000/w.rof)}</b></span><span>Ammo <b>${w.ammo}</b></span></div>
+      <button class="btn ${owned?'equipped':''}" data-buyw="${wid}" ${owned?'disabled':''}>${owned?'OWNED':'Buy ₽'+fmt(cost)}</button></div>`;
+  });
+  h+='</div><div style="color:#8a978a;font-size:.8rem;margin:14px 0 10px;">AMMO &amp; SUPPLIES</div>';
+  Object.keys(AMMO_COST).forEach(t=>{
+    h+=`<div class="row"><div><div class="nm">${t} ammo ×30</div><div class="sub">Have: ${save.ammo[t]||0}</div></div>
+      <button class="btn" data-buya="${t}">Buy ₽${fmt(AMMO_COST[t]*30)}</button></div>`;
+  });
+  h+=`<div class="row"><div><div class="nm">Medkit (+${MED_HEAL} HP)</div><div class="sub">Have: ${save.meds}</div></div>
+      <button class="btn" data-buymed="1">Buy ₽${fmt(MED_COST)}</button></div>`;
+  box.innerHTML=h;
+  box.querySelectorAll("[data-buyw]").forEach(b=>b.addEventListener("click",()=>{
+    const wid=b.dataset.buyw, cost=WEAPON_COST[wid];
+    if(save.money<cost){ toast("Not enough ₽"); return; }
+    save.money-=cost; save.owned[wid]=true; persist(); refreshTop(); renderShop();
+  }));
+  box.querySelectorAll("[data-buya]").forEach(b=>b.addEventListener("click",()=>{
+    const t=b.dataset.buya, cost=AMMO_COST[t]*30;
+    if(save.money<cost){ toast("Not enough ₽"); return; }
+    save.money-=cost; save.ammo[t]=(save.ammo[t]||0)+30; persist(); refreshTop(); renderShop();
+  }));
+  box.querySelector("[data-buymed]").addEventListener("click",()=>{
+    if(save.money<MED_COST){ toast("Not enough ₽"); return; }
+    save.money-=MED_COST; save.meds++; persist(); refreshTop(); renderShop();
+  });
+}
+
+function renderGunsmith(){
+  const box=document.getElementById("tab-gunsmith");
+  const owned=Object.keys(WEAPONS).filter(w=>save.owned[w]);
+  if(!box._sel || !save.owned[box._sel]) box._sel=save.loadout.weapon;
+  const wid=box._sel;
+  const w=resolvedWeapon(wid), base=WEAPONS[wid];
+  const chosen=modsFor(wid);
+  save.modsOwned=save.modsOwned||{}; const owm=save.modsOwned[wid]||{};
+
+  let h='<div style="color:#8a978a;font-size:.78rem;margin-bottom:8px;">Select weapon &amp; build it out. Attachments are bought once, then free to swap. Recoil &amp; ergonomics affect handling in the raid.</div>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">';
+  owned.forEach(id=>{ h+=`<button class="btn ${id===wid?'sel':''}" data-gw="${id}">${WEAPONS[id].name}</button>`; });
+  h+='</div><div class="gsmith">';
+
+  // ----- left: visual + stat bars -----
+  h+='<div class="gs-visual"><canvas class="gun-canvas" id="gunCanvas" width="300" height="130"></canvas>';
+  h+='<div class="statbars">';
+  h+=sbar("Ergonomics", w.ergo, 100, true, w.ergo-base.ergo);
+  h+=sbar("Vertical Recoil", w.recoilV, 400, false, w.recoilV-base.recoilV);
+  h+=sbar("Horizontal Recoil", w.recoilH, 300, false, w.recoilH-base.recoilH);
+  h+=sbar("Accuracy MOA", w.acc, 10, false, Math.round((w.acc-base.acc)*10)/10);
+  h+=sbar("Weight kg", w.weight, 8, false, Math.round((w.weight-base.weight)*10)/10);
+  h+='</div>';
+  h+=`<div class="statline" style="margin-top:12px;">
+      <span>DMG <b>${w.dmg}</b></span><span>MAG <b>${w.mag}</b></span>
+      <span>RPM <b>${Math.round(60000/w.rof)}</b></span><span>RANGE <b>${w.range}</b></span>
+      <span>RELOAD <b>${(w.reload/1000).toFixed(1)}s</b></span></div>`;
+  h+='</div>';
+
+  // ----- right: slots -----
+  h+='<div class="gs-slots">';
+  MOD_SLOTS.forEach(slot=>{
+    h+=`<div class="slotpick"><div class="sname">${slot}</div><div class="optbtns">`;
+    MODS[slot].forEach(mod=>{
+      const eq=chosen[slot]===mod.id;
+      const unlocked = mod.cost===0 || owm[slot+":"+mod.id];
+      const label = eq||unlocked ? mod.name : mod.name+" ₽"+fmt(mod.cost);
+      const cls = "opt"+(eq?" on":"")+(!eq&&!unlocked?" locked":"");
+      h+=`<button class="${cls}" data-slot="${slot}" data-mod="${mod.id}" data-cost="${mod.cost}" title="${mod.desc||"Remove attachment"}">${label}</button>`;
+    });
+    h+='</div></div>';
+  });
+  h+='</div></div>';
+
+  box.innerHTML=h;
+  drawGun(document.getElementById("gunCanvas"), wid);
+  box.querySelectorAll("[data-gw]").forEach(b=>b.addEventListener("click",()=>{ box._sel=b.dataset.gw; renderGunsmith(); }));
+  box.querySelectorAll("[data-slot]").forEach(b=>b.addEventListener("click",()=>{
+    const slot=b.dataset.slot, mid=b.dataset.mod, cost=+b.dataset.cost;
+    save.modsOwned[wid]=save.modsOwned[wid]||{};
+    const key=slot+":"+mid, unlocked = cost===0 || save.modsOwned[wid][key];
+    if(!unlocked){ if(save.money<cost){ toast("Not enough ₽"); return; } save.money-=cost; save.modsOwned[wid][key]=true; toast("Purchased "+mid); }
+    save.mods[wid]=save.mods[wid]||{}; save.mods[wid][slot]=mid;
+    persist(); refreshTop(); renderGunsmith();
+  }));
+}
+function sbar(label,val,max,goodHigh,delta){
+  const pct=clamp(val/max*100,0,100);
+  const quality = goodHigh ? val/max : 1-val/max;
+  const col = quality>0.6?"#8fbf5a":quality>0.35?"#c7a24a":"#c74a3a";
+  let d="";
+  if(delta && Math.abs(delta)>0.001){ const better = goodHigh ? delta>0 : delta<0;
+    d=` <span style="color:${better?'#8fbf5a':'#c74a3a'}">${delta>0?'+':''}${delta}</span>`; }
+  return `<div class="sb"><div class="lab"><span>${label}</span><span><b style="color:#cfe0b8">${val}</b>${d}</span></div><div class="track"><i style="width:${pct}%;background:${col}"></i></div></div>`;
+}
+function drawGun(cnv,wid){
+  if(!cnv) return; const g=cnv.getContext("2d"); const cy=68;
+  g.clearRect(0,0,cnv.width,cnv.height);
+  const ch=modsFor(wid);
+  const metal="#4a5540", metal2="#333c2a", accent="#8fbf5a", gold="#c7a24a", dark="#181d12";
+  // stock (back)
+  if(ch.stock!=="none"){
+    g.fillStyle=accent;
+    if(ch.stock==="fold"){ g.fillRect(74,cy-5,40,9); }
+    else { g.fillRect(46,cy-11,70,22); g.fillStyle=metal2; g.fillRect(60,cy-6,40,12); }
+  }
+  // receiver
+  g.fillStyle=metal; g.fillRect(114,cy-13,68,24);
+  g.strokeStyle=dark; g.lineWidth=2; g.strokeRect(114,cy-13,68,24);
+  // barrel
+  const tip = ch.barrel==="long"?252 : ch.barrel==="short"?208 : ch.barrel==="heavy"?226 : 218;
+  const bw = ch.barrel==="heavy"?9:5;
+  g.fillStyle=metal2; g.fillRect(182,cy-bw/2,tip-182,bw);
+  // handguard
+  if(ch.handguard!=="none"){ const hw=Math.min(tip-190,58); g.fillStyle=accent; g.fillRect(182,cy-10,hw,20); g.strokeStyle=dark; g.strokeRect(182,cy-10,hw,20); }
+  // muzzle
+  if(ch.muzzle!=="none"){ g.fillStyle=gold;
+    if(ch.muzzle==="supp") g.fillRect(tip,cy-8,36,16);
+    else if(ch.muzzle==="comp"){ g.fillRect(tip,cy-6,20,12); g.fillStyle=dark; g.fillRect(tip+5,cy-6,2,12); g.fillRect(tip+11,cy-6,2,12); }
+    else g.fillRect(tip,cy-6,12,12);
+  }
+  // magazine (below)
+  if(ch.magazine==="drum"){ g.fillStyle=accent; g.beginPath(); g.arc(142,cy+28,18,0,7); g.fill(); g.strokeStyle=dark; g.lineWidth=2; g.stroke(); }
+  else { const md = ch.magazine==="ext"?36 : ch.magazine==="poly"?28 : 20;
+    g.fillStyle= ch.magazine==="none"?metal2:accent; g.fillRect(130,cy+11,22,md); g.strokeStyle=dark; g.strokeRect(130,cy+11,22,md); }
+  // pistol grip
+  g.save(); g.translate(162,cy+11); g.rotate(0.34); g.fillStyle= ch.pistolgrip==="none"?metal2:accent; g.fillRect(0,0,12,26); g.strokeStyle=dark; g.strokeRect(0,0,12,26); g.restore();
+  // sight / optic (top)
+  if(ch.sight!=="none"){ g.fillStyle=gold;
+    if(ch.sight==="scope"){ g.fillRect(128,cy-24,46,8); g.fillRect(130,cy-16,6,6); g.fillRect(166,cy-16,6,6); }
+    else if(ch.sight==="holo"){ g.fillRect(132,cy-22,26,11); }
+    else { g.fillRect(136,cy-21,12,10); }
+  }
+  // tactical (under barrel)
+  if(ch.tactical!=="none"){ g.fillStyle= ch.tactical==="laser"?"#c74a3a":"#e6e6a0"; g.fillRect(192,cy+bw/2+3,11,5);
+    if(ch.tactical==="laser"){ g.strokeStyle="rgba(199,74,58,.5)"; g.lineWidth=1; g.beginPath(); g.moveTo(203,cy+bw/2+5); g.lineTo(cnv.width,cy+bw/2+5); g.stroke(); } }
+  // name
+  g.fillStyle="#6f7c6c"; g.font="10px monospace"; g.textAlign="left"; g.fillText(WEAPONS[wid].name,10,16);
+}
+
+function renderStash(){
+  const box=document.getElementById("tab-stash");
+  let h='<div class="grid">';
+  h+=`<div class="card"><h3>Cash</h3><div class="statline"><span style="color:#c7a24a;font-size:1.1rem;"><b>₽${fmt(save.money)}</b></span></div><div class="desc">Earned by extracting with loot.</div></div>`;
+  h+='</div><div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">WEAPONS OWNED</div>';
+  Object.keys(WEAPONS).filter(w=>save.owned[w]).forEach(wid=>{
+    const w=resolvedWeapon(wid); const ch=modsFor(wid);
+    const modpills=MOD_SLOTS.filter(s=>ch[s]!=="none").map(s=>`<span class="pill">${MODS[s].find(m=>m.id===ch[s]).name}</span>`).join("")||'<span class="sub" style="color:#6f7c6c">stock</span>';
+    h+=`<div class="row"><div><div class="nm">${w.name}</div><div class="sub">${modpills}</div></div><div class="sub">DMG ${w.dmg} · MAG ${w.mag}</div></div>`;
+  });
+  h+='<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">AMMO &amp; SUPPLIES</div>';
+  Object.keys(AMMO_COST).forEach(t=>{ h+=`<div class="row"><div class="nm">${t}</div><div class="sub">${save.ammo[t]||0} rounds</div></div>`; });
+  h+=`<div class="row"><div class="nm">Medkits</div><div class="sub">${save.meds}</div></div>`;
+  box.innerHTML=h;
+}
+
+function showResult(success, reason, lines){
+  document.getElementById("hud").classList.remove("show");
+  const rt=document.getElementById("rTitle");
+  rt.textContent = success?"EXTRACTED":"KILLED IN ACTION";
+  rt.className="resultbig "+(success?"win":"lose");
+  document.getElementById("rSub").textContent=reason;
+  document.getElementById("rLoot").innerHTML=lines.map(l=>"› "+l).join("<br>");
+  document.getElementById("result").classList.add("show");
+  refreshTop();
+}
+
+document.getElementById("rBack").addEventListener("click",()=>{
+  document.getElementById("result").classList.remove("show");
+  document.getElementById("menu").classList.add("show");
+  state="menu"; refreshTop(); renderDeploy();
+});
+document.getElementById("wipeBtn").addEventListener("click",()=>{
+  if(confirm("Wipe all progress and start fresh?")){ save=defaultSave(); persist(); refreshTop(); renderDeploy(); }
+});
+
+// ============================================================= BOOT
+loadSave(); refreshTop(); renderDeploy();
+})();
+</script>
+</body>
+</htm
