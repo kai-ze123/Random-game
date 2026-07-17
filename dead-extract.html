@@ -243,7 +243,10 @@
       <span class="kbd">WASD</span> move &nbsp; <span class="kbd">Mouse</span> aim &nbsp;
       <span class="kbd">LMB</span> shoot &nbsp; <span class="kbd">Shift</span> sprint &nbsp;
       <span class="kbd">R</span> reload &nbsp; <span class="kbd">H</span> heal &nbsp;
-      <span class="kbd">E</span> loot / extract &nbsp; <span class="kbd">1 2</span> weapons
+      <span class="kbd">E</span> loot / extract &nbsp;
+      <span class="kbd">G</span> grenade &nbsp;
+      <span class="kbd">F</span> eat &nbsp;
+      <span class="kbd">V</span> drink
     </div>
   </div>
 </div>
@@ -264,7 +267,15 @@
     <div class="bars">
       <div class="bar hp"><i id="hpFill" style="width:100%"></i><b>HP</b></div>
       <div class="bar st"><i id="stFill" style="width:100%"></i><b>STAMINA</b></div>
-      <div style="font-size:.74rem;color:#9fb08f;margin-top:4px;">Meds: <b id="hMeds" style="color:#cfe0b8">0</b> &nbsp;|&nbsp; Loot: <b id="hLoot" style="color:#c7a24a">₽0</b></div>
+      <div class="bar hg"><i id="hgFill" style="width:100%;background:linear-gradient(90deg,#c78a3a,#e0b46a)"></i><b>HUNGER</b></div>
+      <div class="bar th"><i id="thFill" style="width:100%;background:linear-gradient(90deg,#3a86c7,#6ab0e0)"></i><b>THIRST</b></div>
+      <div style="font-size:.72rem;color:#9fb08f;margin-top:4px;">
+        Meds:<b id="hMeds" style="color:#cfe0b8">0</b> · 
+        Nade:<b id="hNade" style="color:#8fbf5a">0</b> · 
+        Food:<b id="hFood" style="color:#c78a3a">0</b> · 
+        Drink:<b id="hDrink" style="color:#3a86c7">0</b> · 
+        Loot:<b id="hLoot" style="color:#c7a24a">₽0</b>
+      </div>
     </div>
     <div class="wpn">
       <div class="name" id="hWpn">—</div>
@@ -287,6 +298,9 @@
     <button class="tc-btn" id="tcReload" aria-label="Reload">R</button>
     <button class="tc-btn" id="tcHeal" aria-label="Heal">H</button>
     <button class="tc-btn" id="tcInteract" aria-label="Interact">E</button>
+    <button class="tc-btn" id="tcGrenade" aria-label="Grenade">G</button>
+    <button class="tc-btn" id="tcFood" aria-label="Eat">F</button>
+    <button class="tc-btn" id="tcDrink" aria-label="Drink">V</button>
     <button class="tc-btn" id="tcSprint" aria-label="Sprint">SPR</button>
   </div>
   <div class="tc-wpn-row">
@@ -310,6 +324,63 @@ const WEAPONS = {
 const WEAPON_COST = {pistol:0, smg:12000, shotgun:16000, rifle:28000, sniper:44000};
 const AMMO_COST   = {"9mm":8, "12g":20, "545":16, "762":34}; // per round
 const MED_COST = 3500, MED_HEAL = 60;
+
+// ============================================================= NEW ITEMS
+const RARITIES = {
+  common:   { name:"Common",   color:"#9CA3AF", price:[80, 250] },
+  uncommon: { name:"Uncommon", color:"#3B82F6", price:[300, 700] },
+  rare:     { name:"Rare",     color:"#A855F7", price:[900, 1800] },
+  epic:     { name:"Epic",     color:"#F59E0B", price:[2200, 5000] },
+};
+const RARITY_WEIGHTS = [
+  {r:"common",   w:60},
+  {r:"uncommon", w:25},
+  {r:"rare",     w:12},
+  {r:"epic",     w:3},
+];
+const MISC_ITEMS = [
+  { id:"pen",     name:"Fountain Pen",   tiers:["common","uncommon"] },
+  { id:"watch",   name:"Wristwatch",     tiers:["uncommon","rare"] },
+  { id:"chain",   name:"Gold Chain",     tiers:["rare","epic"] },
+  { id:"gpu",     name:"Graphics Card",  tiers:["rare","epic"] },
+  { id:"ssd",     name:"NVMe SSD",       tiers:["uncommon","rare"] },
+  { id:"stash",   name:"Cash Stash",     tiers:["common","uncommon","rare"] },
+  { id:"figure",  name:"Antique Figurine",tiers:["uncommon","rare","epic"] },
+  { id:"bond",    name:"Bearer Bond",    tiers:["rare","epic"] },
+  { id:"ring",    name:"Diamond Ring",   tiers:["rare","epic"] },
+  { id:"phone",   name:"Smartphone",     tiers:["common","uncommon"] },
+];
+const FOODS = [
+  { id:"beans", name:"Canned Beans",  hunger:40 },
+  { id:"bar",   name:"Energy Bar",    hunger:25 },
+  { id:"mre",   name:"MRE Ration",    hunger:70 },
+];
+const DRINKS = [
+  { id:"bottle",name:"Water Bottle",  thirst:45 },
+  { id:"soda",  name:"Soda Can",      thirst:30 },
+  { id:"sport", name:"Sports Drink",  thirst:70 },
+];
+const GRENADE_RADIUS = 90;
+const GRENADE_DMG = 90;
+const HUNGER_DECAY = 0.055;   // per game tick
+const THIRST_DECAY = 0.08;
+const STARVE_DMG   = 0.12;    // hp lost per tick when hunger or thirst empty
+
+function rollRarity(){
+  const total = RARITY_WEIGHTS.reduce((s,x)=>s+x.w,0);
+  let r = Math.random() * total;
+  for(const {r:name, w} of RARITY_WEIGHTS){ r -= w; if(r <= 0) return name; }
+  return "common";
+}
+function makeMiscItem(){
+  // pick an item whose tiers include the rolled rarity
+  const rarity = rollRarity();
+  const pool = MISC_ITEMS.filter(it => it.tiers.includes(rarity));
+  const spec = pool[Math.floor(Math.random()*pool.length)] || MISC_ITEMS[0];
+  const [lo, hi] = RARITIES[rarity].price;
+  const value = Math.floor(lo + Math.random()*(hi-lo));
+  return { id: spec.id, name: spec.name, rarity, value };
+}
 
 // Gunsmith mods (EFT-style). Each mod adjusts ergonomics, recoil, accuracy(MOA), weight, etc.
 const MODS = {
@@ -367,6 +438,7 @@ let save;
 function defaultSave(){
   return { money:45000, raids:0, extracts:0, kills:0,
     owned:{pistol:true}, ammo:{"9mm":96,"12g":0,"545":0,"762":0}, meds:2,
+    grenades:0, food:2, water:2, miscLoot:[],
     loadout:{weapon:"pistol"}, mods:{} };
 }
 function loadSave(){
@@ -376,6 +448,10 @@ function loadSave(){
   const d=defaultSave();
   for(const k in d) if(save[k]===undefined) save[k]=d[k];
   if(!save.owned.pistol) save.owned.pistol=true;
+  if(!Array.isArray(save.miscLoot)) save.miscLoot = [];
+  if(typeof save.grenades !== "number") save.grenades = 0;
+  if(typeof save.food !== "number") save.food = 0;
+  if(typeof save.water !== "number") save.water = 0;
 }
 function persist(){ try{ localStorage.setItem(SKEY, JSON.stringify(save)); }catch(e){} }
 
@@ -441,7 +517,7 @@ resize();
 // ============================================================= WORLD
 const WORLD = {w:2600, h:2000};
 let state = "menu";
-let player, enemies, bullets, ebullets, crates, walls, extracts, particles, cam;
+let player, enemies, bullets, ebullets, crates, walls, extracts, particles, cam, grenades, groundItems;
 let raidTime, lastSpawn, extractProgress, extractZone, raidBag, screenShake, running=false;
 
 function rr(a,b){ return a + Math.random()*(b-a); }
@@ -491,10 +567,14 @@ function startRaid(){
     x:WORLD.w/2, y:WORLD.h/2, r:14, angle:0, hp:100, maxhp:100,
     stamina:100, speed:2.9, weapon:w, mag:magLoad, reserve:bring-magLoad,
     meds:save.meds, bringMeds:save.meds, reloading:false, healing:0, lastShot:0, recoilHeat:0,
-    ammoType:type
+    ammoType:type,
+    hunger:100, maxhunger:100, thirst:100, maxthirst:100,
+    grenades: save.grenades||0, food: save.food||0, water: save.water||0,
+    loot: []
   };
   save.meds = 0; // brought into raid
-  enemies=[]; bullets=[]; ebullets=[]; particles=[];
+  save.grenades = 0; save.food = 0; save.water = 0;
+  enemies=[]; bullets=[]; ebullets=[]; particles=[]; grenades=[]; groundItems=[];
   crates=[]; walls=[]; extracts=[];
   raidTime=1800; lastSpawn=0; extractProgress=0; extractZone=null; screenShake=0;
   raidBag={money:0, ammo:{}, meds:0, killed:0};
@@ -568,6 +648,9 @@ window.addEventListener("keydown",e=>{
   if(e.key.toLowerCase()==="r") startReload();
   if(e.key.toLowerCase()==="h") startHeal();
   if(e.key.toLowerCase()==="e") interact();
+  if(e.key.toLowerCase()==="g") throwGrenade();
+  if(e.key.toLowerCase()==="f") useFood();
+  if(e.key.toLowerCase()==="v") useDrink();
   if(["w","a","s","d"," "].includes(e.key.toLowerCase())) e.preventDefault();
 });
 window.addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
@@ -660,6 +743,9 @@ function initTouchControls(){
   bindTouchButton("tcReload",   () => { if(state==="raid") startReload(); });
   bindTouchButton("tcHeal",     () => { if(state==="raid") startHeal(); });
   bindTouchButton("tcInteract", () => { if(state==="raid") interact(); });
+  bindTouchButton("tcGrenade",  () => { if(state==="raid") throwGrenade(); });
+  bindTouchButton("tcFood",     () => { if(state==="raid") useFood(); });
+  bindTouchButton("tcDrink",    () => { if(state==="raid") useDrink(); });
   bindTouchButton("tcSprint",
     () => { keys["shift"] = true; },
     () => { keys["shift"] = false; }
@@ -701,18 +787,55 @@ function interact(){
 }
 function openCrate(c){
   c.open=true;
-  const rolls=Math.floor(rr(1,3));
+  const rolls=Math.floor(rr(2,5));
   let msg=[];
   for(let i=0;i<rolls;i++){
     const r=Math.random();
-    if(r<0.4){ const v=Math.floor(rr(800,3500)); raidBag.money+=v; msg.push("₽"+v); }
-    else if(r<0.7){ const t=player.ammoType; const n=Math.floor(rr(15,40)); raidBag.ammo[t]=(raidBag.ammo[t]||0)+n; player.reserve+=n; msg.push(n+" "+t); }
-    else if(r<0.9){ raidBag.meds++; player.meds++; msg.push("Medkit"); }
-    else { const v=Math.floor(rr(4000,9000)); raidBag.money+=v; msg.push("Valuables ₽"+v); }
+    if(r<0.16){ const v=Math.floor(rr(500,2200)); raidBag.money+=v; msg.push("₽"+v); }
+    else if(r<0.34){ const t=player.ammoType; const n=Math.floor(rr(12,32)); raidBag.ammo[t]=(raidBag.ammo[t]||0)+n; player.reserve+=n; msg.push(n+" "+t); }
+    else if(r<0.44){ raidBag.meds++; player.meds++; msg.push("Medkit"); }
+    else if(r<0.56){ player.grenades=Math.min(6,player.grenades+1); raidBag.grenades=(raidBag.grenades||0)+1; msg.push("Grenade"); }
+    else if(r<0.70){ const f=FOODS[Math.floor(Math.random()*FOODS.length)]; player.food++; raidBag.food=(raidBag.food||0)+1; msg.push(f.name); }
+    else if(r<0.82){ const d=DRINKS[Math.floor(Math.random()*DRINKS.length)]; player.water++; raidBag.water=(raidBag.water||0)+1; msg.push(d.name); }
+    else if(r<0.96){ const it=makeMiscItem(); player.loot.push(it); raidBag.miscLoot=(raidBag.miscLoot||[]); raidBag.miscLoot.push(it); msg.push(it.name+" ("+it.rarity+")"); }
+    else { const v=Math.floor(rr(4000,10000)); raidBag.money+=v; msg.push("Cash pile ₽"+v); }
   }
-  // spark particles
   for(let i=0;i<12;i++) particles.push({x:c.x,y:c.y,vx:rr(-2,2),vy:rr(-2,2),life:30,col:"#c7a24a"});
   toast("Looted: "+msg.join(", "));
+}
+
+function throwGrenade(){
+  const p=player;
+  if(p.grenades<=0){ toast("No grenades"); return; }
+  if(p.reloading || p.healing>0) return;
+  p.grenades--;
+  const tx = (mouse.x+cam.x), ty = (mouse.y+cam.y);
+  const dx = tx - p.x, dy = ty - p.y;
+  const d = Math.hypot(dx, dy);
+  const throwDist = Math.min(220, d);
+  const gx = p.x + (dx/d) * throwDist;
+  const gy = p.y + (dy/d) * throwDist;
+  grenades.push({x0:p.x, y0:p.y, x:p.x, y:p.y, tx:gx, ty:gy, t:0, dur:35, timer:80});
+  toast("Grenade thrown");
+}
+
+function useFood(){
+  const p=player;
+  if(p.food<=0){ toast("No food"); return; }
+  if(p.hunger >= p.maxhunger-1){ toast("Not hungry"); return; }
+  p.food--;
+  const f = FOODS[Math.floor(Math.random()*FOODS.length)];
+  p.hunger = Math.min(p.maxhunger, p.hunger + f.hunger);
+  toast("Ate "+f.name);
+}
+function useDrink(){
+  const p=player;
+  if(p.water<=0){ toast("No water"); return; }
+  if(p.thirst >= p.maxthirst-1){ toast("Not thirsty"); return; }
+  p.water--;
+  const d = DRINKS[Math.floor(Math.random()*DRINKS.length)];
+  p.thirst = Math.min(p.maxthirst, p.thirst + d.thirst);
+  toast("Drank "+d.name);
 }
 
 // ============================================================= COMBAT
@@ -818,6 +941,7 @@ function update(dt, t){
         // maintain distance
         const dir = d < e.keep-30 ? -1 : d > e.keep+30 ? 1 : 0;
         const a=Math.atan2(p.y-e.y,p.x-e.x);
+        e.facing = a;
         e.x+=Math.cos(a)*e.speed*dir*dt; e.y+=Math.sin(a)*e.speed*dir*dt;
         resolveWalls(e);
         e.shoot=(e.shoot||0)+dt*16.6667;
@@ -829,6 +953,7 @@ function update(dt, t){
     } else {
       if(active){
         const a=Math.atan2(p.y-e.y,p.x-e.x);
+        e.facing = a;
         const ox=e.x, oy=e.y;
         e.x+=Math.cos(a)*e.speed*dt; e.y+=Math.sin(a)*e.speed*dt;
         resolveWalls(e);
@@ -854,6 +979,35 @@ function update(dt, t){
   // particles
   for(const pt of particles){ pt.x+=pt.vx; pt.y+=pt.vy; pt.vx*=0.9; pt.vy*=0.9; pt.life--; }
   particles=particles.filter(pt=>pt.life>0);
+
+  // grenades update (arc → land → tick → explode)
+  for(const g of grenades){
+    if(g.t < g.dur){ g.t += dt; g.x = g.x0 + (g.tx-g.x0)*(g.t/g.dur); g.y = g.y0 + (g.ty-g.y0)*(g.t/g.dur); }
+    else { g.timer -= dt*16.6667/16; }
+    if(g.timer <= 0 && !g.exploded){
+      g.exploded = true;
+      for(const e of enemies){
+        const d=Math.hypot(e.x-g.tx, e.y-g.ty);
+        if(d < GRENADE_RADIUS){
+          const dmg = GRENADE_DMG * (1 - d/GRENADE_RADIUS);
+          e.hp -= dmg; e.alert = t;
+          if(e.hp<=0) killEnemy(e);
+        }
+      }
+      // player friendly-fire (small damage if too close)
+      const pd = Math.hypot(p.x-g.tx, p.y-g.ty);
+      if(pd < GRENADE_RADIUS*0.6) hurt(20*(1-pd/(GRENADE_RADIUS*0.6)));
+      // explosion particles
+      for(let i=0;i<32;i++) particles.push({x:g.tx,y:g.ty,vx:rr(-7,7),vy:rr(-7,7),life:26,col:i%2?"#ff9020":"#ffe066",flash:true});
+      screenShake = Math.min(14, screenShake + 9);
+    }
+  }
+  grenades = grenades.filter(g => !g.exploded);
+
+  // hunger / thirst decay
+  p.hunger = Math.max(0, p.hunger - HUNGER_DECAY*dt);
+  p.thirst = Math.max(0, p.thirst - THIRST_DECAY*dt);
+  if(p.hunger <= 0 || p.thirst <= 0){ hurt(STARVE_DMG*dt); }
 
   // crates opening handled in interact
   // extraction check
@@ -891,13 +1045,23 @@ function endRaid(success, reason){
   if(success){
     save.extracts++;
     save.money += raidBag.money;
-    // return brought+looted ammo and meds
+    // return brought+looted ammo, meds, consumables, and sell misc loot
     const t=p.ammoType;
     save.ammo[t] = (save.ammo[t]||0) + p.mag + p.reserve;
     save.meds += p.meds;
-    lootLines.push("Cash secured: ₽"+raidBag.money);
+    save.grenades = (save.grenades||0) + p.grenades;
+    save.food = (save.food||0) + p.food;
+    save.water = (save.water||0) + p.water;
+    // Auto-sell misc loot for money, but also stash for stash-view
+    let miscVal = 0; const miscTaken = (p.loot||[]);
+    for(const it of miscTaken) miscVal += it.value;
+    save.money += miscVal;
+    save.miscLoot = save.miscLoot || [];
+    save.miscLoot = save.miscLoot.concat(miscTaken);
+    lootLines.push("Cash secured: ₽"+(raidBag.money+miscVal));
+    if(miscTaken.length) lootLines.push("Misc loot sold: "+miscTaken.length+" items (₽"+miscVal+")");
     lootLines.push("Ammo returned: "+(p.mag+p.reserve)+" "+t);
-    lootLines.push("Medkits: "+p.meds);
+    lootLines.push("Medkits: "+p.meds+"  ·  Grenades: "+p.grenades+"  ·  Food: "+p.food+"  ·  Water: "+p.water);
     lootLines.push("Kills: "+raidBag.killed);
   } else {
     // lose everything brought + looted (ammo/meds already deducted at deploy)
@@ -907,6 +1071,85 @@ function endRaid(success, reason){
   }
   persist();
   showResult(success, reason, lootLines);
+}
+
+// ============================================================= ENEMY SHAPES
+function drawEnemy(e){
+  const a = e.facing || 0;
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  ctx.rotate(a);
+
+  if(e.type === "zombie"){
+    // Torso
+    ctx.fillStyle = "#5f8a3a"; ctx.strokeStyle = "#3a5522"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, 0, e.r, 0, 7); ctx.fill(); ctx.stroke();
+    // Head
+    ctx.fillStyle = "#82b04c";
+    ctx.beginPath(); ctx.arc(e.r*0.35, 0, e.r*0.55, 0, 7); ctx.fill(); ctx.stroke();
+    // Outstretched arms
+    ctx.strokeStyle = "#3a5522"; ctx.lineWidth = 3.5; ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(e.r*0.1, -e.r*0.7); ctx.lineTo(e.r*1.2, -e.r*0.5);
+    ctx.moveTo(e.r*0.1,  e.r*0.7); ctx.lineTo(e.r*1.2,  e.r*0.5);
+    ctx.stroke();
+    // Hands
+    ctx.fillStyle = "#4d6b2a";
+    ctx.beginPath(); ctx.arc(e.r*1.2, -e.r*0.5, 3, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.r*1.2,  e.r*0.5, 3, 0, 7); ctx.fill();
+    // Eyes
+    ctx.fillStyle = "#1a2b0a";
+    ctx.beginPath(); ctx.arc(e.r*0.45, -e.r*0.2, 1.6, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.r*0.45,  e.r*0.2, 1.6, 0, 7); ctx.fill();
+  } else if(e.type === "runner"){
+    // Elongated tilted body
+    ctx.fillStyle = "#c74a3a"; ctx.strokeStyle = "#7a2818"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r*1.3, e.r*0.7, 0, 0, 7); ctx.fill(); ctx.stroke();
+    // Forward-thrust head
+    ctx.fillStyle = "#e06a52";
+    ctx.beginPath(); ctx.arc(e.r*0.8, 0, e.r*0.5, 0, 7); ctx.fill(); ctx.stroke();
+    // Sharp claws forward
+    ctx.strokeStyle = "#4a1a10"; ctx.lineWidth = 2; ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(e.r*1.1, -e.r*0.4); ctx.lineTo(e.r*1.6, -e.r*0.3);
+    ctx.moveTo(e.r*1.1,  e.r*0.4); ctx.lineTo(e.r*1.6,  e.r*0.3);
+    ctx.stroke();
+    // Speed lines trailing behind
+    ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-e.r*1.6, -e.r*0.3); ctx.lineTo(-e.r*1.0, -e.r*0.3);
+    ctx.moveTo(-e.r*1.9, 0);         ctx.lineTo(-e.r*1.1, 0);
+    ctx.moveTo(-e.r*1.6,  e.r*0.3); ctx.lineTo(-e.r*1.0,  e.r*0.3);
+    ctx.stroke();
+    // Glowing eye
+    ctx.fillStyle = "#ffe680";
+    ctx.beginPath(); ctx.arc(e.r*0.95, -e.r*0.15, 1.6, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.r*0.95,  e.r*0.15, 1.6, 0, 7); ctx.fill();
+  } else if(e.type === "spitter"){
+    // Hunched round body
+    ctx.fillStyle = "#9a5ac7"; ctx.strokeStyle = "#5c327a"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, 0, e.r, 0, 7); ctx.fill(); ctx.stroke();
+    // Bulbous head with mouth
+    ctx.fillStyle = "#b378e0";
+    ctx.beginPath(); ctx.arc(e.r*0.55, 0, e.r*0.75, 0, 7); ctx.fill(); ctx.stroke();
+    // Toxic spit-organ inside mouth
+    ctx.fillStyle = "#a5f04a";
+    ctx.beginPath(); ctx.arc(e.r*0.85, 0, e.r*0.28, 0, 7); ctx.fill();
+    // Dripping goo
+    ctx.fillStyle = "#7ce220";
+    ctx.beginPath(); ctx.arc(e.r*1.0, e.r*0.35, 1.6, 0, 7); ctx.fill();
+    // Eyes
+    ctx.fillStyle = "#1a0028";
+    ctx.beginPath(); ctx.arc(e.r*0.55, -e.r*0.35, 1.8, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.r*0.55,  e.r*0.35, 1.8, 0, 7); ctx.fill();
+  }
+  ctx.restore();
+
+  // HP bar (world-aligned, not rotated)
+  if(e.hp < e.maxhp){
+    ctx.fillStyle = "#000"; ctx.fillRect(e.x-e.r, e.y-e.r-8, e.r*2, 3);
+    ctx.fillStyle = "#c74a3a"; ctx.fillRect(e.x-e.r, e.y-e.r-8, e.r*2*(e.hp/e.maxhp), 3);
+  }
 }
 
 // ============================================================= RENDER
@@ -956,15 +1199,7 @@ function render(){
   for(const b of ebullets){ ctx.beginPath();ctx.arc(b.x,b.y,4,0,7);ctx.fill(); }
 
   // enemies
-  for(const e of enemies){
-    ctx.fillStyle=e.col;
-    ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,7); ctx.fill();
-    ctx.strokeStyle="rgba(0,0,0,.4)"; ctx.lineWidth=2; ctx.stroke();
-    if(e.type==="spitter"){ ctx.fillStyle="#e0c0ff"; ctx.beginPath();ctx.arc(e.x,e.y,4,0,7);ctx.fill(); }
-    // hp bar
-    if(e.hp<e.maxhp){ ctx.fillStyle="#000"; ctx.fillRect(e.x-e.r,e.y-e.r-7,e.r*2,3);
-      ctx.fillStyle="#c74a3a"; ctx.fillRect(e.x-e.r,e.y-e.r-7,e.r*2*(e.hp/e.maxhp),3); }
-  }
+  for(const e of enemies){ drawEnemy(e); }
 
   // player
   const p=player;
@@ -974,6 +1209,36 @@ function render(){
   ctx.strokeStyle="#20261c"; ctx.lineWidth=5; ctx.beginPath();
   ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+Math.cos(p.angle)*22,p.y+Math.sin(p.angle)*22); ctx.stroke();
   if(p.healing>0){ ctx.strokeStyle="#6ab0e0"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(p.x,p.y,p.r+6,0,7*(1-p.healing/1600)); ctx.stroke(); }
+
+  // grenades in flight
+  for(const g of grenades){
+    const t = g.t / g.dur;
+    if(t <= 1){
+      // arc: linear interpolation with a bounce curve
+      const cx = g.x0 + (g.tx - g.x0) * t;
+      const cy = g.y0 + (g.ty - g.y0) * t;
+      const arc = Math.sin(t * Math.PI) * 40;
+      ctx.fillStyle = "#3d5220";
+      ctx.beginPath(); ctx.arc(cx, cy - arc, 6, 0, 7); ctx.fill();
+      ctx.strokeStyle = "#1a2810"; ctx.lineWidth = 1.5; ctx.stroke();
+      // shadow
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.beginPath(); ctx.ellipse(cx, cy, 6, 3, 0, 0, 7); ctx.fill();
+    } else if(g.timer > 0){
+      // sitting on ground, blinking
+      const blink = Math.floor(g.timer/6) % 2;
+      ctx.fillStyle = blink ? "#5f8a3a" : "#ff4020";
+      ctx.beginPath(); ctx.arc(g.tx, g.ty, 6, 0, 7); ctx.fill();
+    }
+  }
+
+  // ground items (food, water, misc from crates that spill out)
+  for(const it of groundItems){
+    ctx.fillStyle = it.color;
+    ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1;
+    ctx.fillRect(it.x-6, it.y-6, 12, 12);
+    ctx.strokeRect(it.x-6, it.y-6, 12, 12);
+  }
 
   // particles
   for(const pt of particles){
@@ -1017,8 +1282,15 @@ function updateHUD(){
   const p=player;
   document.getElementById("hpFill").style.width=clamp(p.hp,0,100)+"%";
   document.getElementById("stFill").style.width=p.stamina+"%";
+  document.getElementById("hgFill").style.width=clamp(p.hunger,0,100)+"%";
+  document.getElementById("thFill").style.width=clamp(p.thirst,0,100)+"%";
   document.getElementById("hMeds").textContent=p.meds;
-  document.getElementById("hLoot").textContent="₽"+raidBag.money;
+  document.getElementById("hNade").textContent=p.grenades;
+  document.getElementById("hFood").textContent=p.food;
+  document.getElementById("hDrink").textContent=p.water;
+  // Loot total includes misc loot values
+  let miscVal = 0; for(const it of (p.loot||[])) miscVal += it.value;
+  document.getElementById("hLoot").textContent="₽"+(raidBag.money + miscVal);
   document.getElementById("hWpn").textContent=p.weapon.name+(p.reloading?" (reloading)":"");
   document.getElementById("hMag").textContent=p.mag;
   document.getElementById("hRes").textContent=p.reserve;
@@ -1103,6 +1375,12 @@ function renderShop(){
   });
   h+=`<div class="row"><div><div class="nm">Medkit (+${MED_HEAL} HP)</div><div class="sub">Have: ${save.meds}</div></div>
       <button class="btn" data-buymed="1">Buy ₽${fmt(MED_COST)}</button></div>`;
+  h+=`<div class="row"><div><div class="nm">Grenade (area damage, ${GRENADE_DMG} dmg)</div><div class="sub">Have: ${save.grenades||0}</div></div>
+      <button class="btn" data-buygrenade="1">Buy ₽${fmt(2200)}</button></div>`;
+  h+=`<div class="row"><div><div class="nm">Ration Pack (food +40 hunger)</div><div class="sub">Have: ${save.food||0}</div></div>
+      <button class="btn" data-buyfood="1">Buy ₽${fmt(600)}</button></div>`;
+  h+=`<div class="row"><div><div class="nm">Water Pack (drink +45 thirst)</div><div class="sub">Have: ${save.water||0}</div></div>
+      <button class="btn" data-buywater="1">Buy ₽${fmt(400)}</button></div>`;
   box.innerHTML=h;
   box.querySelectorAll("[data-buyw]").forEach(b=>b.addEventListener("click",()=>{
     const wid=b.dataset.buyw, cost=WEAPON_COST[wid];
@@ -1117,6 +1395,18 @@ function renderShop(){
   box.querySelector("[data-buymed]").addEventListener("click",()=>{
     if(save.money<MED_COST){ toast("Not enough ₽"); return; }
     save.money-=MED_COST; save.meds++; persist(); refreshTop(); renderShop();
+  });
+  box.querySelector("[data-buygrenade]").addEventListener("click",()=>{
+    if(save.money<2200){ toast("Not enough ₽"); return; }
+    save.money-=2200; save.grenades=(save.grenades||0)+1; persist(); refreshTop(); renderShop();
+  });
+  box.querySelector("[data-buyfood]").addEventListener("click",()=>{
+    if(save.money<600){ toast("Not enough ₽"); return; }
+    save.money-=600; save.food=(save.food||0)+1; persist(); refreshTop(); renderShop();
+  });
+  box.querySelector("[data-buywater]").addEventListener("click",()=>{
+    if(save.money<400){ toast("Not enough ₽"); return; }
+    save.money-=400; save.water=(save.water||0)+1; persist(); refreshTop(); renderShop();
   });
 }
 
@@ -1243,6 +1533,19 @@ function renderStash(){
   h+='<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">AMMO &amp; SUPPLIES</div>';
   Object.keys(AMMO_COST).forEach(t=>{ h+=`<div class="row"><div class="nm">${t}</div><div class="sub">${save.ammo[t]||0} rounds</div></div>`; });
   h+=`<div class="row"><div class="nm">Medkits</div><div class="sub">${save.meds}</div></div>`;
+  h+=`<div class="row"><div class="nm">Grenades</div><div class="sub">${save.grenades||0}</div></div>`;
+  h+=`<div class="row"><div class="nm">Rations (food)</div><div class="sub">${save.food||0}</div></div>`;
+  h+=`<div class="row"><div class="nm">Water packs</div><div class="sub">${save.water||0}</div></div>`;
+
+  // Misc loot history (last 20 items with rarity colour)
+  const misc = (save.miscLoot||[]).slice(-20).reverse();
+  if(misc.length){
+    h+='<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">RECENT MISC LOOT (auto-sold on extract)</div>';
+    misc.forEach(it => {
+      const rar = RARITIES[it.rarity] || RARITIES.common;
+      h+=`<div class="row"><div><div class="nm">${it.name}</div><div class="sub" style="color:${rar.color}">${rar.name}</div></div><div class="sub" style="color:#c7a24a">₽${fmt(it.value)}</div></div>`;
+    });
+  }
   box.innerHTML=h;
 }
 
