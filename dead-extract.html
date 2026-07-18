@@ -123,6 +123,24 @@
   .resultbig.lose{color:#c74a3a;}
   .lootlist{background:#12160f;border:1px solid #2c3720;border-radius:10px;padding:12px;margin:12px 0;font-size:.84rem;color:#9fb08f;}
 
+  /* ---- in-raid backpack overlay ---- */
+  #bagOverlay{position:fixed;inset:0;z-index:8;display:none;flex-direction:column;
+    background:rgba(6,10,6,.86);align-items:center;justify-content:center;padding:20px;}
+  #bagOverlay.show{display:flex;}
+  .bag-modal{background:linear-gradient(160deg,#131811,#0d110a);border:2px solid #4d6b30;
+    border-radius:12px;padding:20px;max-width:640px;width:100%;box-shadow:0 6px 40px rgba(0,0,0,.6);}
+  .bag-modal .header{display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:14px;color:#cfe0b8;letter-spacing:.08em;font-size:.9rem;}
+  .bag-modal .header .actions{display:flex;gap:6px;}
+  .bag-modal .grid-wrap{display:flex;justify-content:center;padding:6px;background:#0e120a;
+    border:1px solid #2c3720;border-radius:8px;}
+  .bag-modal .hint{margin-top:10px;font-size:.7rem;color:#8a978a;text-align:center;letter-spacing:.06em;}
+  .bag-cell-empty{background:#22261c;border-radius:3px;}
+  .bag-item-tile{border-radius:3px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;font-size:.55rem;color:#1a1a1a;font-weight:700;text-align:center;
+    padding:2px;line-height:1.05;overflow:hidden;cursor:pointer;transition:transform .08s;}
+  .bag-item-tile:hover{transform:scale(1.05);box-shadow:0 0 8px rgba(255,255,255,.4);}
+
   /* ---- mobile / touch additions ---- */
   html,body{overscroll-behavior:none;-webkit-user-select:none;user-select:none;
     padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);
@@ -246,7 +264,8 @@
       <span class="kbd">E</span> loot / extract &nbsp;
       <span class="kbd">G</span> grenade &nbsp;
       <span class="kbd">F</span> eat &nbsp;
-      <span class="kbd">V</span> drink
+      <span class="kbd">V</span> drink &nbsp;
+      <span class="kbd">B</span> backpack
     </div>
   </div>
 </div>
@@ -274,7 +293,8 @@
         Nade:<b id="hNade" style="color:#8fbf5a">0</b> · 
         Food:<b id="hFood" style="color:#c78a3a">0</b> · 
         Drink:<b id="hDrink" style="color:#3a86c7">0</b> · 
-        Loot:<b id="hLoot" style="color:#c7a24a">₽0</b>
+        Loot:<b id="hLoot" style="color:#c7a24a">₽0</b> · 
+        Bag:<b id="hBag" style="color:#cfe0b8">0/0</b>
       </div>
     </div>
     <div class="wpn">
@@ -283,9 +303,22 @@
     </div>
     <div class="info">
       <div class="timer" id="hTimer">30:00</div>
-      <div>Enemies: <span id="hEnemies">0</span></div>
+      <div>Enemies: <span id="hEnemies">0</span> · Kills: <span id="hKills">0</span></div>
       <div id="hExtract" style="color:#8fbf5a"></div>
     </div>
+  </div>
+</div>
+<div id="bagOverlay">
+  <div class="bag-modal">
+    <div class="header">
+      <div>BACKPACK  ·  <span id="bagCap"></span></div>
+      <div class="actions">
+        <button class="btn" id="bagSortBtn">Sort</button>
+        <button class="btn" id="bagCloseBtn">Close (B)</button>
+      </div>
+    </div>
+    <div class="grid-wrap"><div id="bagGridView"></div></div>
+    <div class="hint">TAP AN ITEM TO DROP IT · GAME IS PAUSED</div>
   </div>
 </div>
 <div id="extractProg"><div style="font-size:.8rem;letter-spacing:.1em;color:#cfe0b8">EXTRACTING…</div><div class="pbar"><i id="extractFill"></i></div></div>
@@ -301,6 +334,7 @@
     <button class="tc-btn" id="tcGrenade" aria-label="Grenade">G</button>
     <button class="tc-btn" id="tcFood" aria-label="Eat">F</button>
     <button class="tc-btn" id="tcDrink" aria-label="Drink">V</button>
+    <button class="tc-btn" id="tcBag" aria-label="Backpack">BAG</button>
     <button class="tc-btn" id="tcSprint" aria-label="Sprint">SPR</button>
   </div>
   <div class="tc-wpn-row">
@@ -362,9 +396,107 @@ const DRINKS = [
 ];
 const GRENADE_RADIUS = 90;
 const GRENADE_DMG = 90;
-const HUNGER_DECAY = 0.055;   // per game tick
-const THIRST_DECAY = 0.08;
-const STARVE_DMG   = 0.12;    // hp lost per tick when hunger or thirst empty
+const HUNGER_DECAY = 0.00139; // ~20-min drain from 100→0
+const THIRST_DECAY = 0.00139; // ~20-min drain from 100→0
+const STARVE_DMG   = 0.04;    // hp lost per tick when hunger or thirst empty (soft ramp)
+
+const BACKPACKS = {
+  sling:      { name:"Sling Bag",         cols:4, rows:3, cost:0     },
+  tactical:   { name:"Tactical Vest",     cols:5, rows:4, cost:15000 },
+  military:   { name:"Military Rucksack", cols:6, rows:5, cost:40000 },
+  extraction: { name:"Extraction Pack",   cols:7, rows:6, cost:90000 },
+};
+const BACKPACK_TIERS = ["sling","tactical","military","extraction"];
+
+// -------- Item catalogue (types with grid sizes + display colours) --------
+const ITEM_TYPES = {
+  medkit:     { w:1, h:1, color:"#c74a3a", name:"Medkit" },
+  grenade:    { w:1, h:1, color:"#3d5220", name:"Grenade" },
+  food_bar:   { w:1, h:1, color:"#c78a3a", name:"Energy Bar",   hunger:25 },
+  food_can:   { w:1, h:1, color:"#a8722a", name:"Canned Beans", hunger:40 },
+  food_mre:   { w:1, h:2, color:"#7d5518", name:"MRE Ration",   hunger:70 },
+  drink_can:  { w:1, h:1, color:"#3a86c7", name:"Soda Can",     thirst:30 },
+  drink_btl:  { w:1, h:1, color:"#3060a8", name:"Water Bottle", thirst:45 },
+  drink_spo:  { w:1, h:2, color:"#204688", name:"Sports Drink", thirst:70 },
+};
+function miscGridSize(rarity){
+  return ({ common:{w:1,h:1}, uncommon:{w:1,h:2}, rare:{w:2,h:2}, epic:{w:2,h:3} })[rarity] || {w:1,h:1};
+}
+function makeItem(type){
+  const t = ITEM_TYPES[type];
+  return { type, w:t.w, h:t.h, color:t.color, name:t.name, hunger:t.hunger, thirst:t.thirst };
+}
+function makeFoodItem(){
+  const kinds = ["food_bar","food_can","food_mre"];
+  return makeItem(kinds[Math.floor(Math.random()*kinds.length)]);
+}
+function makeDrinkItem(){
+  const kinds = ["drink_can","drink_btl","drink_spo"];
+  return makeItem(kinds[Math.floor(Math.random()*kinds.length)]);
+}
+function makeMiscItemGrid(){
+  const it = makeMiscItem();
+  const sz = miscGridSize(it.rarity);
+  const rar = RARITIES[it.rarity];
+  return { type:"misc", id:it.id, name:it.name, rarity:it.rarity, value:it.value,
+           w:sz.w, h:sz.h, color:rar.color };
+}
+
+// -------- Grid packing utilities --------
+function _rectsOverlap(ax,ay,aw,ah, bx,by,bw,bh){
+  return !(ax+aw<=bx || ax>=bx+bw || ay+ah<=by || ay>=by+bh);
+}
+function bagFits(bag, w, h, x, y){
+  if(x<0 || y<0 || x+w>bag.cols || y+h>bag.rows) return false;
+  for(const it of bag.items){
+    if(_rectsOverlap(x,y,w,h, it.x,it.y,it.w,it.h)) return false;
+  }
+  return true;
+}
+function bagTryPlace(bag, item){
+  // Try natural
+  for(let y=0; y<=bag.rows-item.h; y++){
+    for(let x=0; x<=bag.cols-item.w; x++){
+      if(bagFits(bag, item.w, item.h, x, y)){
+        item.x=x; item.y=y; bag.items.push(item); return true;
+      }
+    }
+  }
+  // Try rotated
+  if(item.w !== item.h){
+    for(let y=0; y<=bag.rows-item.w; y++){
+      for(let x=0; x<=bag.cols-item.h; x++){
+        if(bagFits(bag, item.h, item.w, x, y)){
+          const rw=item.w, rh=item.h;
+          item.w=rh; item.h=rw;
+          item.x=x; item.y=y; item.rotated=true;
+          bag.items.push(item);
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+function bagRemove(bag, item){
+  const i = bag.items.indexOf(item);
+  if(i>=0) bag.items.splice(i,1);
+}
+function bagCount(bag, matcher){
+  let n=0; for(const it of bag.items) if(matcher(it)) n++;
+  return n;
+}
+function bagFindFirst(bag, matcher){
+  for(const it of bag.items) if(matcher(it)) return it;
+  return null;
+}
+// legacy compat for older code paths that check "can I fit N slots"
+function bagUsed(){
+  let n = 0; for(const it of player.backpack.items) n += it.w*it.h; return n;
+}
+function bagCapacity(){ return player.backpack.cols * player.backpack.rows; }
+function bagFree(){ return bagCapacity() - bagUsed(); }
+function canFit(n){ return bagFree() >= (n||1); }
 
 function rollRarity(){
   const total = RARITY_WEIGHTS.reduce((s,x)=>s+x.w,0);
@@ -436,9 +568,17 @@ const MOD_SLOTS = ["muzzle","barrel","handguard","sight","tactical","pistolgrip"
 const SKEY = "deadextract_save_v1";
 let save;
 function defaultSave(){
+  // stashItems holds all portable items (medkit, grenade, food, drink, misc).
+  // Grid position is added when they're packed into a backpack for a raid.
+  const stashItems = [
+    makeItem("medkit"), makeItem("medkit"),
+    makeFoodItem(), makeFoodItem(),
+    makeDrinkItem(), makeDrinkItem(),
+  ];
   return { money:45000, raids:0, extracts:0, kills:0,
-    owned:{pistol:true}, ammo:{"9mm":96,"12g":0,"545":0,"762":0}, meds:2,
-    grenades:0, food:2, water:2, miscLoot:[],
+    owned:{pistol:true}, ammo:{"9mm":96,"12g":0,"545":0,"762":0},
+    stashItems: stashItems, miscLootLog: [],
+    backpack:"sling", ownedBags:{sling:true},
     loadout:{weapon:"pistol"}, mods:{} };
 }
 function loadSave(){
@@ -448,10 +588,20 @@ function loadSave(){
   const d=defaultSave();
   for(const k in d) if(save[k]===undefined) save[k]=d[k];
   if(!save.owned.pistol) save.owned.pistol=true;
-  if(!Array.isArray(save.miscLoot)) save.miscLoot = [];
-  if(typeof save.grenades !== "number") save.grenades = 0;
-  if(typeof save.food !== "number") save.food = 0;
-  if(typeof save.water !== "number") save.water = 0;
+  if(!save.backpack) save.backpack = "sling";
+  if(!save.ownedBags) save.ownedBags = { sling: true };
+  if(!Array.isArray(save.miscLootLog)) save.miscLootLog = save.miscLoot || [];
+  // Migrate old-format counters into the new stashItems array
+  if(!Array.isArray(save.stashItems)){
+    save.stashItems = [];
+    const nM = save.meds||0, nG = save.grenades||0, nF = save.food||0, nW = save.water||0;
+    for(let i=0;i<nM;i++) save.stashItems.push(makeItem("medkit"));
+    for(let i=0;i<nG;i++) save.stashItems.push(makeItem("grenade"));
+    for(let i=0;i<nF;i++) save.stashItems.push(makeFoodItem());
+    for(let i=0;i<nW;i++) save.stashItems.push(makeDrinkItem());
+    delete save.meds; delete save.grenades; delete save.food; delete save.water;
+    delete save.miscLoot;
+  }
 }
 function persist(){ try{ localStorage.setItem(SKEY, JSON.stringify(save)); }catch(e){} }
 
@@ -519,6 +669,8 @@ const WORLD = {w:2600, h:2000};
 let state = "menu";
 let player, enemies, bullets, ebullets, crates, walls, extracts, particles, cam, grenades, groundItems;
 let raidTime, lastSpawn, extractProgress, extractZone, raidBag, screenShake, running=false;
+let paused = false;
+let damageNumbers = [];
 
 function rr(a,b){ return a + Math.random()*(b-a); }
 function dist2(ax,ay,bx,by){ const dx=ax-bx,dy=ay-by; return dx*dx+dy*dy; }
@@ -563,17 +715,28 @@ function startRaid(){
   const bring = Math.min(save.ammo[type]||0, w.mag*5);
   save.ammo[type] = (save.ammo[type]||0) - bring; // taken into raid
   const magLoad = Math.min(w.mag, bring);
+  // Allocate the backpack grid and pack stashItems into it
+  const bagId = save.backpack || "sling";
+  const bp = BACKPACKS[bagId] || BACKPACKS.sling;
+  const bag = { id: bagId, cols: bp.cols, rows: bp.rows, items: [] };
+  // Sort stash by area descending so larger items pack first (better fill)
+  save.stashItems.sort((a,b) => (b.w*b.h) - (a.w*a.h));
+  const remaining = [];
+  for(const it of save.stashItems){
+    const copy = JSON.parse(JSON.stringify(it));
+    delete copy.x; delete copy.y; delete copy.rotated;
+    if(!bagTryPlace(bag, copy)) remaining.push(it);
+  }
+  save.stashItems = remaining;
+
   player = {
     x:WORLD.w/2, y:WORLD.h/2, r:14, angle:0, hp:100, maxhp:100,
     stamina:100, speed:2.9, weapon:w, mag:magLoad, reserve:bring-magLoad,
-    meds:save.meds, bringMeds:save.meds, reloading:false, healing:0, lastShot:0, recoilHeat:0,
+    reloading:false, healing:0, lastShot:0, recoilHeat:0,
     ammoType:type,
     hunger:100, maxhunger:100, thirst:100, maxthirst:100,
-    grenades: save.grenades||0, food: save.food||0, water: save.water||0,
-    loot: []
+    backpack: bag
   };
-  save.meds = 0; // brought into raid
-  save.grenades = 0; save.food = 0; save.water = 0;
   enemies=[]; bullets=[]; ebullets=[]; particles=[]; grenades=[]; groundItems=[];
   crates=[]; walls=[]; extracts=[];
   raidTime=1800; lastSpawn=0; extractProgress=0; extractZone=null; screenShake=0;
@@ -651,6 +814,7 @@ window.addEventListener("keydown",e=>{
   if(e.key.toLowerCase()==="g") throwGrenade();
   if(e.key.toLowerCase()==="f") useFood();
   if(e.key.toLowerCase()==="v") useDrink();
+  if(e.key.toLowerCase()==="b") toggleBag();
   if(["w","a","s","d"," "].includes(e.key.toLowerCase())) e.preventDefault();
 });
 window.addEventListener("keyup",e=>{ keys[e.key.toLowerCase()]=false; });
@@ -746,6 +910,7 @@ function initTouchControls(){
   bindTouchButton("tcGrenade",  () => { if(state==="raid") throwGrenade(); });
   bindTouchButton("tcFood",     () => { if(state==="raid") useFood(); });
   bindTouchButton("tcDrink",    () => { if(state==="raid") useDrink(); });
+  bindTouchButton("tcBag",      () => { if(state==="raid") toggleBag(); });
   bindTouchButton("tcSprint",
     () => { keys["shift"] = true; },
     () => { keys["shift"] = false; }
@@ -772,8 +937,11 @@ function startReload(){
   toast("Reloading…");
 }
 function startHeal(){
-  const p=player; if(p.healing>0||p.meds<=0||p.hp>=p.maxhp) return;
-  p.meds--; p.healing=1600;
+  const p=player; if(p.healing>0||p.hp>=p.maxhp) return;
+  const m = bagFindFirst(p.backpack, i => i.type === "medkit");
+  if(!m){ toast("No medkits"); return; }
+  bagRemove(p.backpack, m);
+  p.healing=1600;
   toast("Using medkit…");
 }
 function interact(){
@@ -788,30 +956,41 @@ function interact(){
 function openCrate(c){
   c.open=true;
   const rolls=Math.floor(rr(2,5));
-  let msg=[];
+  let msg=[], droppedCount=0;
   for(let i=0;i<rolls;i++){
     const r=Math.random();
-    if(r<0.16){ const v=Math.floor(rr(500,2200)); raidBag.money+=v; msg.push("₽"+v); }
-    else if(r<0.34){ const t=player.ammoType; const n=Math.floor(rr(12,32)); raidBag.ammo[t]=(raidBag.ammo[t]||0)+n; player.reserve+=n; msg.push(n+" "+t); }
-    else if(r<0.44){ raidBag.meds++; player.meds++; msg.push("Medkit"); }
-    else if(r<0.56){ player.grenades=Math.min(6,player.grenades+1); raidBag.grenades=(raidBag.grenades||0)+1; msg.push("Grenade"); }
-    else if(r<0.70){ const f=FOODS[Math.floor(Math.random()*FOODS.length)]; player.food++; raidBag.food=(raidBag.food||0)+1; msg.push(f.name); }
-    else if(r<0.82){ const d=DRINKS[Math.floor(Math.random()*DRINKS.length)]; player.water++; raidBag.water=(raidBag.water||0)+1; msg.push(d.name); }
-    else if(r<0.96){ const it=makeMiscItem(); player.loot.push(it); raidBag.miscLoot=(raidBag.miscLoot||[]); raidBag.miscLoot.push(it); msg.push(it.name+" ("+it.rarity+")"); }
-    else { const v=Math.floor(rr(4000,10000)); raidBag.money+=v; msg.push("Cash pile ₽"+v); }
+    // Cash & ammo never take grid space
+    if(r<0.16){ const v=Math.floor(rr(500,2200)); raidBag.money+=v; msg.push("₽"+v); continue; }
+    if(r<0.34){ const t=player.ammoType; const n=Math.floor(rr(12,32)); raidBag.ammo[t]=(raidBag.ammo[t]||0)+n; player.reserve+=n; msg.push(n+" "+t); continue; }
+    // Build the loot item, then attempt to fit it into the grid
+    let item;
+    if(r<0.44)      item = makeItem("medkit");
+    else if(r<0.56) item = makeItem("grenade");
+    else if(r<0.70) item = makeFoodItem();
+    else if(r<0.82) item = makeDrinkItem();
+    else if(r<0.96) item = makeMiscItemGrid();
+    else { const v=Math.floor(rr(4000,10000)); raidBag.money+=v; msg.push("Cash pile ₽"+v); continue; }
+
+    if(bagTryPlace(player.backpack, item)){
+      msg.push(item.name + (item.rarity ? " ("+item.rarity+")" : ""));
+    } else {
+      droppedCount++;
+    }
   }
   for(let i=0;i<12;i++) particles.push({x:c.x,y:c.y,vx:rr(-2,2),vy:rr(-2,2),life:30,col:"#c7a24a"});
-  toast("Looted: "+msg.join(", "));
+  const suffix = droppedCount ? "  (no bag space — "+droppedCount+" lost)" : "";
+  toast("Looted: "+msg.join(", ")+suffix);
 }
 
 function throwGrenade(){
   const p=player;
-  if(p.grenades<=0){ toast("No grenades"); return; }
+  const g = bagFindFirst(p.backpack, i => i.type === "grenade");
+  if(!g){ toast("No grenades"); return; }
   if(p.reloading || p.healing>0) return;
-  p.grenades--;
+  bagRemove(p.backpack, g);
   const tx = (mouse.x+cam.x), ty = (mouse.y+cam.y);
   const dx = tx - p.x, dy = ty - p.y;
-  const d = Math.hypot(dx, dy);
+  const d = Math.hypot(dx, dy) || 1;
   const throwDist = Math.min(220, d);
   const gx = p.x + (dx/d) * throwDist;
   const gy = p.y + (dy/d) * throwDist;
@@ -821,21 +1000,86 @@ function throwGrenade(){
 
 function useFood(){
   const p=player;
-  if(p.food<=0){ toast("No food"); return; }
+  const f = bagFindFirst(p.backpack, i => i.type && i.type.startsWith("food_"));
+  if(!f){ toast("No food"); return; }
   if(p.hunger >= p.maxhunger-1){ toast("Not hungry"); return; }
-  p.food--;
-  const f = FOODS[Math.floor(Math.random()*FOODS.length)];
-  p.hunger = Math.min(p.maxhunger, p.hunger + f.hunger);
+  bagRemove(p.backpack, f);
+  p.hunger = Math.min(p.maxhunger, p.hunger + (f.hunger||40));
   toast("Ate "+f.name);
 }
 function useDrink(){
   const p=player;
-  if(p.water<=0){ toast("No water"); return; }
+  const d = bagFindFirst(p.backpack, i => i.type && i.type.startsWith("drink_"));
+  if(!d){ toast("No water"); return; }
   if(p.thirst >= p.maxthirst-1){ toast("Not thirsty"); return; }
-  p.water--;
-  const d = DRINKS[Math.floor(Math.random()*DRINKS.length)];
-  p.thirst = Math.min(p.maxthirst, p.thirst + d.thirst);
+  bagRemove(p.backpack, d);
+  p.thirst = Math.min(p.maxthirst, p.thirst + (d.thirst||45));
   toast("Drank "+d.name);
+}
+
+// ============================================================= BACKPACK OVERLAY
+function toggleBag(){
+  if(state !== "raid") return;
+  if(paused) closeBag(); else openBag();
+}
+function openBag(){
+  if(state !== "raid") return;
+  paused = true;
+  renderBagOverlay();
+  document.getElementById("bagOverlay").classList.add("show");
+}
+function closeBag(){
+  paused = false;
+  document.getElementById("bagOverlay").classList.remove("show");
+}
+function dropItem(item){
+  bagRemove(player.backpack, item);
+  toast("Dropped: " + (item.name || item.type));
+  renderBagOverlay();
+  updateHUD();
+}
+function sortBag(){
+  const items = player.backpack.items.slice();
+  player.backpack.items = [];
+  items.sort((a,b) => (b.w*b.h) - (a.w*a.h));
+  let placed = 0;
+  for(const it of items){
+    const clean = {...it}; delete clean.x; delete clean.y; delete clean.rotated;
+    if(bagTryPlace(player.backpack, clean)) placed++;
+  }
+  renderBagOverlay();
+  toast("Sorted (" + placed + " items)");
+}
+function renderBagOverlay(){
+  const bag = player.backpack;
+  const cellPx = 44;
+  document.getElementById("bagCap").textContent =
+    bag.cols + "×" + bag.rows + " · " + bagUsed() + "/" + bagCapacity() + " cells";
+  let h = `<div style="display:grid;grid-template-columns:repeat(${bag.cols},${cellPx}px);grid-template-rows:repeat(${bag.rows},${cellPx}px);gap:2px;">`;
+  for(let y=0; y<bag.rows; y++){
+    for(let x=0; x<bag.cols; x++){
+      h += `<div class="bag-cell-empty" style="grid-column:${x+1};grid-row:${y+1};"></div>`;
+    }
+  }
+  bag.items.forEach((it, idx) => {
+    const label = (it.name || it.type).slice(0, 14);
+    const val = it.value ? "₽"+fmt(it.value) : "";
+    h += `<div class="bag-item-tile" data-idx="${idx}" title="Tap to drop: ${it.name||it.type}" style="grid-column:${it.x+1}/span ${it.w};grid-row:${it.y+1}/span ${it.h};background:${it.color||'#5f8a3a'};font-size:${it.w>=2?'.7rem':'.55rem'};">${label}${val?"<br/>"+val:""}</div>`;
+  });
+  h += `</div>`;
+  document.getElementById("bagGridView").innerHTML = h;
+  document.querySelectorAll(".bag-item-tile").forEach(el => {
+    el.addEventListener("click", () => {
+      const idx = +el.dataset.idx;
+      const item = bag.items[idx];
+      if(item) dropItem(item);
+    });
+  });
+}
+
+// ============================================================= DAMAGE NUMBERS
+function addDamageNumber(x, y, amount, color){
+  damageNumbers.push({ x, y, text: String(Math.round(amount)), color: color || "#ffe680", life: 32, vy: -1.6 });
 }
 
 // ============================================================= COMBAT
@@ -866,8 +1110,22 @@ function fire(){
 let last=0;
 function loop(t){
   const dt = Math.min(33, t-(last||t)); last=t;
-  if(state==="raid"){ update(dt/16.6667, t); render(); }
+  if(state==="raid"){
+    if(!paused) update(dt/16.6667, t);
+    render();
+    if(paused) drawPauseOverlay();
+  }
   requestAnimationFrame(loop);
+}
+function drawPauseOverlay(){
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,.35)";
+  ctx.fillRect(0,0,VW,VH);
+  ctx.fillStyle = "#cfe0b8";
+  ctx.font = "bold 22px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("PAUSED", VW/2, 60);
+  ctx.restore();
 }
 
 function update(dt, t){
@@ -913,6 +1171,7 @@ function update(dt, t){
     for(const e of enemies){
       if(e.hp>0 && dist2(b.x,b.y,e.x,e.y) < (e.r+3)*(e.r+3)){
         e.hp-=b.dmg; b.life=0; e.alert=t;
+        addDamageNumber(e.x + rr(-6,6), e.y - e.r - 4, b.dmg, e.hp<=0 ? "#ff6060" : "#ffe680");
         for(let i=0;i<6;i++) particles.push({x:e.x,y:e.y,vx:rr(-2.5,2.5),vy:rr(-2.5,2.5),life:18,col:"#8a2f1f"});
         if(e.hp<=0){ killEnemy(e); }
         break;
@@ -980,6 +1239,10 @@ function update(dt, t){
   for(const pt of particles){ pt.x+=pt.vx; pt.y+=pt.vy; pt.vx*=0.9; pt.vy*=0.9; pt.life--; }
   particles=particles.filter(pt=>pt.life>0);
 
+  // damage number floats
+  for(const dn of damageNumbers){ dn.y += dn.vy; dn.vy *= 0.94; dn.life--; }
+  damageNumbers = damageNumbers.filter(dn => dn.life > 0);
+
   // grenades update (arc → land → tick → explode)
   for(const g of grenades){
     if(g.t < g.dur){ g.t += dt; g.x = g.x0 + (g.tx-g.x0)*(g.t/g.dur); g.y = g.y0 + (g.ty-g.y0)*(g.t/g.dur); }
@@ -1036,6 +1299,8 @@ function killEnemy(e){ raidBag.killed++; for(let i=0;i<10;i++) particles.push({x
 
 function endRaid(success, reason){
   state="ended";
+  paused = false;
+  document.getElementById("bagOverlay").classList.remove("show");
   const p=player;
   document.getElementById("hud").classList.remove("show");
   document.getElementById("extractProg").classList.remove("show");
@@ -1045,23 +1310,34 @@ function endRaid(success, reason){
   if(success){
     save.extracts++;
     save.money += raidBag.money;
-    // return brought+looted ammo, meds, consumables, and sell misc loot
     const t=p.ammoType;
     save.ammo[t] = (save.ammo[t]||0) + p.mag + p.reserve;
-    save.meds += p.meds;
-    save.grenades = (save.grenades||0) + p.grenades;
-    save.food = (save.food||0) + p.food;
-    save.water = (save.water||0) + p.water;
-    // Auto-sell misc loot for money, but also stash for stash-view
-    let miscVal = 0; const miscTaken = (p.loot||[]);
-    for(const it of miscTaken) miscVal += it.value;
+    // Split bag: consumables/misc → stash. Misc auto-sold on extract.
+    let miscVal = 0, miscCount = 0;
+    save.stashItems = save.stashItems || [];
+    save.miscLootLog = save.miscLootLog || [];
+    const keptCounts = { medkit:0, grenade:0, food:0, drink:0 };
+    for(const it of p.backpack.items){
+      if(it.type === "misc"){
+        miscVal += it.value || 0;
+        miscCount++;
+        save.miscLootLog.push({ id:it.id, name:it.name, rarity:it.rarity, value:it.value });
+      } else {
+        // Strip grid position before returning to stash
+        const clean = { type:it.type, w:it.w, h:it.h, color:it.color, name:it.name,
+                        hunger:it.hunger, thirst:it.thirst };
+        save.stashItems.push(clean);
+        if(it.type === "medkit") keptCounts.medkit++;
+        else if(it.type === "grenade") keptCounts.grenade++;
+        else if(it.type.startsWith("food_")) keptCounts.food++;
+        else if(it.type.startsWith("drink_")) keptCounts.drink++;
+      }
+    }
     save.money += miscVal;
-    save.miscLoot = save.miscLoot || [];
-    save.miscLoot = save.miscLoot.concat(miscTaken);
     lootLines.push("Cash secured: ₽"+(raidBag.money+miscVal));
-    if(miscTaken.length) lootLines.push("Misc loot sold: "+miscTaken.length+" items (₽"+miscVal+")");
+    if(miscCount) lootLines.push("Misc loot sold: "+miscCount+" items (₽"+miscVal+")");
     lootLines.push("Ammo returned: "+(p.mag+p.reserve)+" "+t);
-    lootLines.push("Medkits: "+p.meds+"  ·  Grenades: "+p.grenades+"  ·  Food: "+p.food+"  ·  Water: "+p.water);
+    lootLines.push("Medkits: "+keptCounts.medkit+"  ·  Grenades: "+keptCounts.grenade+"  ·  Food: "+keptCounts.food+"  ·  Water: "+keptCounts.drink);
     lootLines.push("Kills: "+raidBag.killed);
   } else {
     // lose everything brought + looted (ammo/meds already deducted at deploy)
@@ -1240,6 +1516,19 @@ function render(){
     ctx.strokeRect(it.x-6, it.y-6, 12, 12);
   }
 
+  // damage numbers (world space)
+  for(const dn of damageNumbers){
+    ctx.globalAlpha = Math.max(0, dn.life/32);
+    ctx.font = "bold 14px monospace";
+    ctx.textAlign = "center";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#000";
+    ctx.strokeText(dn.text, dn.x, dn.y);
+    ctx.fillStyle = dn.color;
+    ctx.fillText(dn.text, dn.x, dn.y);
+  }
+  ctx.globalAlpha = 1;
+
   // particles
   for(const pt of particles){
     ctx.globalAlpha=Math.max(0,pt.life/22);
@@ -1284,17 +1573,24 @@ function updateHUD(){
   document.getElementById("stFill").style.width=p.stamina+"%";
   document.getElementById("hgFill").style.width=clamp(p.hunger,0,100)+"%";
   document.getElementById("thFill").style.width=clamp(p.thirst,0,100)+"%";
-  document.getElementById("hMeds").textContent=p.meds;
-  document.getElementById("hNade").textContent=p.grenades;
-  document.getElementById("hFood").textContent=p.food;
-  document.getElementById("hDrink").textContent=p.water;
-  // Loot total includes misc loot values
-  let miscVal = 0; for(const it of (p.loot||[])) miscVal += it.value;
+  const bag = p.backpack;
+  document.getElementById("hMeds").textContent = bagCount(bag, i => i.type === "medkit");
+  document.getElementById("hNade").textContent = bagCount(bag, i => i.type === "grenade");
+  document.getElementById("hFood").textContent = bagCount(bag, i => i.type && i.type.startsWith("food_"));
+  document.getElementById("hDrink").textContent = bagCount(bag, i => i.type && i.type.startsWith("drink_"));
+  let miscVal = 0;
+  for(const it of bag.items) if(it.type === "misc" && it.value) miscVal += it.value;
   document.getElementById("hLoot").textContent="₽"+(raidBag.money + miscVal);
+  document.getElementById("hBag").textContent = bagUsed()+"/"+bagCapacity();
+  document.getElementById("hBag").style.color = bagFree()<=0 ? "#c74a3a" : bagFree()<=2 ? "#c7a24a" : "#cfe0b8";
   document.getElementById("hWpn").textContent=p.weapon.name+(p.reloading?" (reloading)":"");
-  document.getElementById("hMag").textContent=p.mag;
+  const magEl = document.getElementById("hMag");
+  magEl.textContent = p.mag;
+  const magLow = p.weapon.mag > 0 && p.mag <= Math.max(1, Math.ceil(p.weapon.mag * 0.2));
+  magEl.style.color = p.mag <= 0 ? "#c74a3a" : (magLow ? "#c7a24a" : "#cfe0b8");
   document.getElementById("hRes").textContent=p.reserve;
   document.getElementById("hEnemies").textContent=enemies.length;
+  document.getElementById("hKills").textContent = raidBag.killed || 0;
   const mm=Math.floor(raidTime/60), ss=Math.floor(raidTime%60);
   const tEl=document.getElementById("hTimer");
   tEl.textContent=mm+":"+(ss<10?"0":"")+ss;
@@ -1348,7 +1644,7 @@ function renderDeploy(){
   });
   h+='</div>';
   h+=`<div class="deploybar">
-      <div class="load">Loadout: <b>${resolvedWeapon(save.loadout.weapon).name}</b> · Ammo <b>${save.ammo[resolvedWeapon(save.loadout.weapon).ammo]||0}</b> · Medkits <b>${save.meds}</b></div>
+      <div class="load">Loadout: <b>${resolvedWeapon(save.loadout.weapon).name}</b> · Ammo <b>${save.ammo[resolvedWeapon(save.loadout.weapon).ammo]||0}</b> · Stash items <b>${(save.stashItems||[]).length}</b> · Bag <b>${BACKPACKS[save.backpack||"sling"].cols}×${BACKPACKS[save.backpack||"sling"].rows}</b></div>
       <button class="btn big gold" id="deployBtn">DEPLOY INTO RAID</button></div>`;
   box.innerHTML=h;
   box.querySelectorAll("[data-pick]").forEach(b=>b.addEventListener("click",()=>{ save.loadout.weapon=b.dataset.pick; persist(); renderDeploy(); }));
@@ -1373,13 +1669,25 @@ function renderShop(){
     h+=`<div class="row"><div><div class="nm">${t} ammo ×30</div><div class="sub">Have: ${save.ammo[t]||0}</div></div>
       <button class="btn" data-buya="${t}">Buy ₽${fmt(AMMO_COST[t]*30)}</button></div>`;
   });
-  h+=`<div class="row"><div><div class="nm">Medkit (+${MED_HEAL} HP)</div><div class="sub">Have: ${save.meds}</div></div>
+  h+='</div><div style="color:#8a978a;font-size:.8rem;margin:14px 0 10px;">BACKPACKS</div>';
+  BACKPACK_TIERS.forEach(id => {
+    const bp = BACKPACKS[id];
+    const owned = save.ownedBags && save.ownedBags[id];
+    const equipped = save.backpack === id;
+    const label = equipped ? "EQUIPPED" : owned ? "Equip" : "Buy ₽"+fmt(bp.cost);
+    h+=`<div class="row"><div><div class="nm">${bp.name}</div><div class="sub">Capacity: ${bp.cap} slots</div></div>
+        <button class="btn ${equipped?'equipped':''}" data-bag="${id}" ${equipped?'disabled':''}>${label}</button></div>`;
+  });
+  h+='<div style="color:#8a978a;font-size:.8rem;margin:14px 0 10px;">SUPPLIES</div>';
+  const stashCount = t => (save.stashItems||[]).filter(it =>
+    (typeof t === "function") ? t(it) : it.type === t).length;
+  h+=`<div class="row"><div><div class="nm">Medkit (+${MED_HEAL} HP)</div><div class="sub">Have: ${stashCount("medkit")}</div></div>
       <button class="btn" data-buymed="1">Buy ₽${fmt(MED_COST)}</button></div>`;
-  h+=`<div class="row"><div><div class="nm">Grenade (area damage, ${GRENADE_DMG} dmg)</div><div class="sub">Have: ${save.grenades||0}</div></div>
+  h+=`<div class="row"><div><div class="nm">Grenade (area damage, ${GRENADE_DMG} dmg)</div><div class="sub">Have: ${stashCount("grenade")}</div></div>
       <button class="btn" data-buygrenade="1">Buy ₽${fmt(2200)}</button></div>`;
-  h+=`<div class="row"><div><div class="nm">Ration Pack (food +40 hunger)</div><div class="sub">Have: ${save.food||0}</div></div>
+  h+=`<div class="row"><div><div class="nm">Ration Pack (food)</div><div class="sub">Have: ${stashCount(it=>it.type&&it.type.startsWith("food_"))}</div></div>
       <button class="btn" data-buyfood="1">Buy ₽${fmt(600)}</button></div>`;
-  h+=`<div class="row"><div><div class="nm">Water Pack (drink +45 thirst)</div><div class="sub">Have: ${save.water||0}</div></div>
+  h+=`<div class="row"><div><div class="nm">Water Pack (drink)</div><div class="sub">Have: ${stashCount(it=>it.type&&it.type.startsWith("drink_"))}</div></div>
       <button class="btn" data-buywater="1">Buy ₽${fmt(400)}</button></div>`;
   box.innerHTML=h;
   box.querySelectorAll("[data-buyw]").forEach(b=>b.addEventListener("click",()=>{
@@ -1392,21 +1700,37 @@ function renderShop(){
     if(save.money<cost){ toast("Not enough ₽"); return; }
     save.money-=cost; save.ammo[t]=(save.ammo[t]||0)+30; persist(); refreshTop(); renderShop();
   }));
+  box.querySelectorAll("[data-bag]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.bag; const bp = BACKPACKS[id];
+    save.ownedBags = save.ownedBags || {};
+    if(!save.ownedBags[id]){
+      if(save.money < bp.cost){ toast("Not enough ₽"); return; }
+      save.money -= bp.cost;
+      save.ownedBags[id] = true;
+      toast("Purchased "+bp.name);
+    }
+    save.backpack = id;
+    persist(); refreshTop(); renderShop();
+  }));
   box.querySelector("[data-buymed]").addEventListener("click",()=>{
     if(save.money<MED_COST){ toast("Not enough ₽"); return; }
-    save.money-=MED_COST; save.meds++; persist(); refreshTop(); renderShop();
+    save.money-=MED_COST; save.stashItems.push(makeItem("medkit"));
+    persist(); refreshTop(); renderShop();
   });
   box.querySelector("[data-buygrenade]").addEventListener("click",()=>{
     if(save.money<2200){ toast("Not enough ₽"); return; }
-    save.money-=2200; save.grenades=(save.grenades||0)+1; persist(); refreshTop(); renderShop();
+    save.money-=2200; save.stashItems.push(makeItem("grenade"));
+    persist(); refreshTop(); renderShop();
   });
   box.querySelector("[data-buyfood]").addEventListener("click",()=>{
     if(save.money<600){ toast("Not enough ₽"); return; }
-    save.money-=600; save.food=(save.food||0)+1; persist(); refreshTop(); renderShop();
+    save.money-=600; save.stashItems.push(makeFoodItem());
+    persist(); refreshTop(); renderShop();
   });
   box.querySelector("[data-buywater]").addEventListener("click",()=>{
     if(save.money<400){ toast("Not enough ₽"); return; }
-    save.money-=400; save.water=(save.water||0)+1; persist(); refreshTop(); renderShop();
+    save.money-=400; save.stashItems.push(makeDrinkItem());
+    persist(); refreshTop(); renderShop();
   });
 }
 
@@ -1522,31 +1846,82 @@ function drawGun(cnv,wid){
 
 function renderStash(){
   const box=document.getElementById("tab-stash");
-  let h='<div class="grid">';
-  h+=`<div class="card"><h3>Cash</h3><div class="statline"><span style="color:#c7a24a;font-size:1.1rem;"><b>₽${fmt(save.money)}</b></span></div><div class="desc">Earned by extracting with loot.</div></div>`;
-  h+='</div><div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">WEAPONS OWNED</div>';
+  const bagId = save.backpack || "sling";
+  const bp = BACKPACKS[bagId] || BACKPACKS.sling;
+
+  // Build a preview of what fits into the backpack from the current stash
+  const previewBag = { id: bagId, cols: bp.cols, rows: bp.rows, items: [] };
+  const stashCopy = (save.stashItems||[]).map(it => JSON.parse(JSON.stringify(it)));
+  stashCopy.sort((a,b) => (b.w*b.h) - (a.w*a.h));
+  let overflow = 0;
+  for(const it of stashCopy){
+    if(!bagTryPlace(previewBag, it)) overflow++;
+  }
+  const used = previewBag.items.reduce((n,it) => n + it.w*it.h, 0);
+  const capacity = bp.cols * bp.rows;
+
+  let h = `<div class="grid">
+    <div class="card"><h3>Cash</h3>
+      <div class="statline"><span style="color:#c7a24a;font-size:1.1rem;"><b>₽${fmt(save.money)}</b></span></div>
+      <div class="desc">Earned by extracting with loot.</div>
+    </div>
+    <div class="card"><h3>${bp.name}</h3>
+      <div class="statline"><span>Capacity: ${bp.cols}×${bp.rows} = ${capacity} cells</span><span>Used: ${used} · Free: ${capacity-used}</span></div>
+      <div class="desc">${overflow?overflow+" item(s) don't fit — upgrade in Market to bring more.":"All stash items fit for the next raid."}</div>
+    </div>
+  </div>`;
+
+  // Grid visual
+  const cell = 30;
+  h += `<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">BACKPACK GRID (packed preview — this is what deploys with you)</div>`;
+  h += `<div style="display:inline-block;padding:6px;background:#0e120a;border:1px solid #2c3720;border-radius:8px;">`;
+  h += `<div style="display:grid;grid-template-columns:repeat(${bp.cols},${cell}px);grid-template-rows:repeat(${bp.rows},${cell}px);gap:2px;">`;
+  // Empty cells
+  for(let y=0; y<bp.rows; y++){
+    for(let x=0; x<bp.cols; x++){
+      h += `<div style="grid-column:${x+1};grid-row:${y+1};background:#22261c;border-radius:3px;"></div>`;
+    }
+  }
+  // Items
+  for(const it of previewBag.items){
+    const label = it.name || it.type;
+    const val = it.value ? " · ₽"+fmt(it.value) : "";
+    h += `<div title="${label}${val}" style="grid-column:${it.x+1}/span ${it.w};grid-row:${it.y+1}/span ${it.h};background:${it.color||'#5f8a3a'};border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#1a1a1a;font-weight:700;text-align:center;padding:2px;line-height:1.05;overflow:hidden;">${label}</div>`;
+  }
+  h += `</div></div>`;
+
+  // Owned weapons
+  h += '<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">WEAPONS OWNED</div>';
   Object.keys(WEAPONS).filter(w=>save.owned[w]).forEach(wid=>{
     const w=resolvedWeapon(wid); const ch=modsFor(wid);
-    const modpills=MOD_SLOTS.filter(s=>ch[s]!=="none").map(s=>`<span class="pill">${MODS[s].find(m=>m.id===ch[s]).name}</span>`).join("")||'<span class="sub" style="color:#6f7c6c">stock</span>';
-    h+=`<div class="row"><div><div class="nm">${w.name}</div><div class="sub">${modpills}</div></div><div class="sub">DMG ${w.dmg} · MAG ${w.mag}</div></div>`;
+    const modpills = MOD_SLOTS.filter(s=>ch[s]!=="none").map(s=>`<span class="pill">${MODS[s].find(m=>m.id===ch[s]).name}</span>`).join("")||'<span class="sub" style="color:#6f7c6c">stock</span>';
+    h += `<div class="row"><div><div class="nm">${w.name}</div><div class="sub">${modpills}</div></div><div class="sub">DMG ${w.dmg} · MAG ${w.mag}</div></div>`;
   });
-  h+='<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">AMMO &amp; SUPPLIES</div>';
-  Object.keys(AMMO_COST).forEach(t=>{ h+=`<div class="row"><div class="nm">${t}</div><div class="sub">${save.ammo[t]||0} rounds</div></div>`; });
-  h+=`<div class="row"><div class="nm">Medkits</div><div class="sub">${save.meds}</div></div>`;
-  h+=`<div class="row"><div class="nm">Grenades</div><div class="sub">${save.grenades||0}</div></div>`;
-  h+=`<div class="row"><div class="nm">Rations (food)</div><div class="sub">${save.food||0}</div></div>`;
-  h+=`<div class="row"><div class="nm">Water packs</div><div class="sub">${save.water||0}</div></div>`;
 
-  // Misc loot history (last 20 items with rarity colour)
-  const misc = (save.miscLoot||[]).slice(-20).reverse();
+  // Ammo
+  h += '<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">AMMO</div>';
+  Object.keys(AMMO_COST).forEach(t => {
+    h += `<div class="row"><div class="nm">${t}</div><div class="sub">${save.ammo[t]||0} rounds</div></div>`;
+  });
+
+  // Full stash summary counts
+  const c = t => (save.stashItems||[]).filter(it => (typeof t === "function") ? t(it) : it.type === t).length;
+  h += '<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">STASH TOTALS</div>';
+  h += `<div class="row"><div class="nm">Medkits</div><div class="sub">${c("medkit")}</div></div>`;
+  h += `<div class="row"><div class="nm">Grenades</div><div class="sub">${c("grenade")}</div></div>`;
+  h += `<div class="row"><div class="nm">Food</div><div class="sub">${c(it=>it.type&&it.type.startsWith("food_"))}</div></div>`;
+  h += `<div class="row"><div class="nm">Drinks</div><div class="sub">${c(it=>it.type&&it.type.startsWith("drink_"))}</div></div>`;
+
+  // Recent misc loot log (auto-sold on extract)
+  const misc = (save.miscLootLog||[]).slice(-20).reverse();
   if(misc.length){
-    h+='<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">RECENT MISC LOOT (auto-sold on extract)</div>';
+    h += '<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">RECENT MISC LOOT (auto-sold on extract)</div>';
     misc.forEach(it => {
       const rar = RARITIES[it.rarity] || RARITIES.common;
-      h+=`<div class="row"><div><div class="nm">${it.name}</div><div class="sub" style="color:${rar.color}">${rar.name}</div></div><div class="sub" style="color:#c7a24a">₽${fmt(it.value)}</div></div>`;
+      h += `<div class="row"><div><div class="nm">${it.name}</div><div class="sub" style="color:${rar.color}">${rar.name}</div></div><div class="sub" style="color:#c7a24a">₽${fmt(it.value)}</div></div>`;
     });
   }
-  box.innerHTML=h;
+  box.innerHTML = h;
 }
 
 function showResult(success, reason, lines){
@@ -1570,6 +1945,13 @@ document.getElementById("wipeBtn").addEventListener("click",()=>{
 });
 
 // ============================================================= BOOT
+document.getElementById("bagCloseBtn").addEventListener("click", closeBag);
+document.getElementById("bagSortBtn").addEventListener("click", sortBag);
+// clicking on the HUD bag counter opens the overlay too
+document.getElementById("hBag").style.cursor = "pointer";
+document.getElementById("hud").addEventListener("click", (e) => {
+  if(e.target.id === "hBag") toggleBag();
+});
 loadSave(); refreshTop(); renderDeploy(); initTouchControls();
 })();
 </script>
