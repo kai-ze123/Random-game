@@ -231,8 +231,25 @@
 <body>
 <div id="stage"><canvas id="game"></canvas></div>
 
+<!-- LOGIN / PROFILE PICKER -->
+<div class="screen show" id="login">
+  <div class="wrap" style="max-width:560px;">
+    <h1>DEAD<span class="b">·</span>EXTRACT</h1>
+    <div class="tagline">Choose an account</div>
+    <div id="profileList" style="margin:16px 0;"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input type="text" id="newProfileName" placeholder="New account name (max 16 chars)" maxlength="16"
+        style="flex:1;min-width:200px;padding:10px 12px;background:#171c14;border:1px solid #2c3720;color:#cfe0b8;font-family:inherit;border-radius:8px;font-size:.9rem;"/>
+      <button class="btn big gold" id="createProfileBtn">Create account</button>
+    </div>
+    <div style="color:#6f7c6c;font-size:.72rem;margin-top:16px;">
+      Accounts are stored locally in this browser only.  Each account has its own money, weapons, stash and loadout.
+    </div>
+  </div>
+</div>
+
 <!-- HIDEOUT / MENU -->
-<div class="screen show" id="menu">
+<div class="screen" id="menu">
   <div class="wrap">
     <h1>DEAD<span class="b">·</span>EXTRACT</h1>
     <div class="tagline">Zombie Extraction Survival</div>
@@ -242,7 +259,8 @@
       <div class="stat2">Raids: <span id="mRaids">0</span></div>
       <div class="stat2">Extracted: <span id="mExtracts">0</span></div>
       <div class="stat2">Kills: <span id="mKills">0</span></div>
-      <button class="btn red" id="wipeBtn" style="margin-left:auto">Wipe Save</button>
+      <button class="btn" id="signOutBtn" style="margin-left:auto">Sign Out</button>
+      <button class="btn red" id="wipeBtn">Wipe Save</button>
     </div>
 
     <div class="tabs">
@@ -565,7 +583,27 @@ const MODS = {
 const MOD_SLOTS = ["muzzle","barrel","handguard","sight","tactical","pistolgrip","stock","magazine"];
 
 // ============================================================= SAVE
-const SKEY = "deadextract_save_v1";
+// ============================================================= ACCOUNT SYSTEM
+const PROFILES_KEY = "deadextract_profiles";
+const CURRENT_KEY  = "deadextract_current";
+function loadProfiles(){
+  try { return JSON.parse(localStorage.getItem(PROFILES_KEY) || "[]"); }
+  catch(e){ return []; }
+}
+function saveProfiles(list){
+  try { localStorage.setItem(PROFILES_KEY, JSON.stringify(list)); } catch(e){}
+}
+function currentProfile(){ return localStorage.getItem(CURRENT_KEY) || null; }
+function setCurrentProfile(name){
+  if(name) localStorage.setItem(CURRENT_KEY, name);
+  else localStorage.removeItem(CURRENT_KEY);
+}
+function saveKeyFor(name){ return "deadextract_save_v1_" + name; }
+function SKEY_(){
+  const cur = currentProfile();
+  return cur ? saveKeyFor(cur) : "deadextract_save_v1";
+}
+const SKEY = { toString(){ return SKEY_(); } };
 let save;
 function defaultSave(){
   // stashItems holds all portable items (medkit, grenade, food, drink, misc).
@@ -577,12 +615,13 @@ function defaultSave(){
   ];
   return { money:45000, raids:0, extracts:0, kills:0,
     owned:{pistol:true}, ammo:{"9mm":96,"12g":0,"545":0,"762":0},
-    stashItems: stashItems, miscLootLog: [],
+    stashItems: stashItems, miscLootLog: [], loadoutBag: [],
     backpack:"sling", ownedBags:{sling:true},
     loadout:{weapon:"pistol"}, mods:{} };
 }
 function loadSave(){
-  try{ const r=localStorage.getItem(SKEY); save = r?JSON.parse(r):defaultSave(); }
+  const key = SKEY_();
+  try{ const r=localStorage.getItem(key); save = r?JSON.parse(r):defaultSave(); }
   catch(e){ save=defaultSave(); }
   // integrity
   const d=defaultSave();
@@ -590,6 +629,7 @@ function loadSave(){
   if(!save.owned.pistol) save.owned.pistol=true;
   if(!save.backpack) save.backpack = "sling";
   if(!save.ownedBags) save.ownedBags = { sling: true };
+  if(!Array.isArray(save.loadoutBag)) save.loadoutBag = [];
   if(!Array.isArray(save.miscLootLog)) save.miscLootLog = save.miscLoot || [];
   // Migrate old-format counters into the new stashItems array
   if(!Array.isArray(save.stashItems)){
@@ -603,7 +643,7 @@ function loadSave(){
     delete save.miscLoot;
   }
 }
-function persist(){ try{ localStorage.setItem(SKEY, JSON.stringify(save)); }catch(e){} }
+function persist(){ try{ localStorage.setItem(SKEY_(), JSON.stringify(save)); }catch(e){} }
 
 // resolved weapon stats after mods
 function modsFor(wid){
@@ -715,19 +755,17 @@ function startRaid(){
   const bring = Math.min(save.ammo[type]||0, w.mag*5);
   save.ammo[type] = (save.ammo[type]||0) - bring; // taken into raid
   const magLoad = Math.min(w.mag, bring);
-  // Allocate the backpack grid and pack stashItems into it
+  // Allocate the backpack grid and pack the selected loadout into it
   const bagId = save.backpack || "sling";
   const bp = BACKPACKS[bagId] || BACKPACKS.sling;
   const bag = { id: bagId, cols: bp.cols, rows: bp.rows, items: [] };
-  // Sort stash by area descending so larger items pack first (better fill)
-  save.stashItems.sort((a,b) => (b.w*b.h) - (a.w*a.h));
-  const remaining = [];
-  for(const it of save.stashItems){
+  save.loadoutBag = save.loadoutBag || [];
+  for(const it of save.loadoutBag){
     const copy = JSON.parse(JSON.stringify(it));
     delete copy.x; delete copy.y; delete copy.rotated;
-    if(!bagTryPlace(bag, copy)) remaining.push(it);
+    bagTryPlace(bag, copy);
   }
-  save.stashItems = remaining;
+  save.loadoutBag = []; // consumed on deploy
 
   player = {
     x:WORLD.w/2, y:WORLD.h/2, r:14, angle:0, hp:100, maxhp:100,
@@ -1631,23 +1669,161 @@ function renderTab(which){
 function renderDeploy(){
   const box=document.getElementById("tab-deploy");
   const owned=Object.keys(WEAPONS).filter(w=>save.owned[w]);
-  let h='<div style="color:#8a978a;font-size:.8rem;margin-bottom:10px;">Choose your primary. Ammo &amp; medkits in your stash are taken into the raid — <b style="color:#c74a3a">lose them if you die.</b></div>';
-  h+='<div class="grid">';
+  const bagId = save.backpack || "sling"; const bp = BACKPACKS[bagId];
+  const previewBag = { id: bagId, cols: bp.cols, rows: bp.rows, items: [] };
+  save.loadoutBag = save.loadoutBag || [];
+  // Preview grid (with positions)
+  const previewItems = save.loadoutBag.map(it => JSON.parse(JSON.stringify(it)));
+  previewItems.sort((a,b) => (b.w*b.h) - (a.w*a.h));
+  const overflowIndexes = [];
+  previewItems.forEach((it, i) => {
+    const clean = {...it}; delete clean.x; delete clean.y; delete clean.rotated;
+    if(!bagTryPlace(previewBag, clean)) overflowIndexes.push(i);
+  });
+  const used = previewBag.items.reduce((n,it)=>n+it.w*it.h,0);
+  const capacity = bp.cols * bp.rows;
+
+  let h = '<div style="color:#8a978a;font-size:.8rem;margin-bottom:10px;">Pick weapon &amp; build your loadout below.  <b style="color:#c74a3a">Anything in your bag is lost if you die.</b></div>';
+
+  // WEAPON SECTION
+  h += '<div style="color:#8a978a;font-size:.7rem;letter-spacing:.1em;margin:4px 0 8px;">WEAPON</div>';
+  h += '<div class="grid">';
   owned.forEach(wid=>{
     const w=resolvedWeapon(wid); const sel=save.loadout.weapon===wid;
     const haveAmmo=save.ammo[w.ammo]||0;
     h+=`<div class="card"><h3>${w.name}</h3>
       <div class="statline"><span>DMG <b>${w.dmg}</b></span><span>MAG <b>${w.mag}</b></span><span>RPM <b>${Math.round(60000/w.rof)}</b></span><span>RNG <b>${w.range}</b></span></div>
-      <div class="statline"><span>ERGO <b>${w.ergo}</b></span><span>RECOIL <b>${w.recoilV}</b></span><span>MOA <b>${w.acc}</b></span></div>
       <div class="statline"><span>Ammo <b>${w.ammo}</b>: ${haveAmmo} in stash</span></div>
       <button class="btn ${sel?'sel equipped':''}" data-pick="${wid}">${sel?'DEPLOYING WITH THIS':'Select'}</button></div>`;
   });
-  h+='</div>';
-  h+=`<div class="deploybar">
-      <div class="load">Loadout: <b>${resolvedWeapon(save.loadout.weapon).name}</b> · Ammo <b>${save.ammo[resolvedWeapon(save.loadout.weapon).ammo]||0}</b> · Stash items <b>${(save.stashItems||[]).length}</b> · Bag <b>${BACKPACKS[save.backpack||"sling"].cols}×${BACKPACKS[save.backpack||"sling"].rows}</b></div>
+  h += '</div>';
+
+  // LOADOUT BUILDER
+  h += `<div style="color:#8a978a;font-size:.7rem;letter-spacing:.1em;margin:16px 0 8px;">LOADOUT  ·  ${bp.name}  ·  ${used}/${capacity} cells</div>`;
+  h += '<div style="display:flex;gap:12px;flex-wrap:wrap;">';
+
+  // Left: Grid preview + action buttons
+  h += '<div style="flex:1;min-width:260px;">';
+  const cellPx = 32;
+  h += `<div style="display:inline-block;padding:6px;background:#0e120a;border:1px solid #2c3720;border-radius:8px;">
+        <div style="display:grid;grid-template-columns:repeat(${bp.cols},${cellPx}px);grid-template-rows:repeat(${bp.rows},${cellPx}px);gap:2px;">`;
+  for(let y=0; y<bp.rows; y++){
+    for(let x=0; x<bp.cols; x++){
+      h += `<div style="grid-column:${x+1};grid-row:${y+1};background:#22261c;border-radius:3px;"></div>`;
+    }
+  }
+  previewBag.items.forEach((it, i) => {
+    const label = (it.name || it.type).slice(0, 12);
+    h += `<div class="loadout-item" data-remove="${i}" title="Click to return to stash" style="grid-column:${it.x+1}/span ${it.w};grid-row:${it.y+1}/span ${it.h};background:${it.color||'#5f8a3a'};border-radius:3px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#1a1a1a;font-weight:700;text-align:center;padding:2px;line-height:1.05;">${label}</div>`;
+  });
+  h += '</div></div>';
+  h += `<div style="margin-top:10px;font-size:.72rem;color:#8a978a;">Click bag items to send them back to stash.</div>`;
+  h += '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">';
+  h += '<button class="btn" id="loadClearBtn">Clear</button>';
+  h += '<button class="btn" id="loadAutoBtn">Auto-fill</button>';
+  h += '</div>';
+  h += '</div>';
+
+  // Right: Stash items list (add on click)
+  h += '<div style="flex:1;min-width:240px;">';
+  h += `<div style="font-size:.72rem;color:#8a978a;margin-bottom:6px;letter-spacing:.06em;">STASH ITEMS  (${(save.stashItems||[]).length})  ·  click to add</div>`;
+  h += '<div style="max-height:280px;overflow-y:auto;background:#0e120a;border:1px solid #2c3720;border-radius:8px;padding:6px;">';
+  if((save.stashItems||[]).length === 0){
+    h += '<div style="color:#6f7c6c;font-size:.75rem;padding:14px;text-align:center;">Stash is empty. Loot crates and extract to fill it.</div>';
+  } else {
+    // Group stash items by name for cleaner listing
+    const groups = {};
+    save.stashItems.forEach((it, i) => {
+      const k = (it.name||it.type) + "|" + it.w + "x" + it.h + "|" + (it.rarity||"") + "|" + (it.value||"");
+      if(!groups[k]) groups[k] = { item: it, indexes: [] };
+      groups[k].indexes.push(i);
+    });
+    Object.values(groups).forEach(g => {
+      const it = g.item;
+      const qty = g.indexes.length;
+      const size = it.w + "×" + it.h;
+      const rarBadge = it.rarity ? `<span class="pill" style="background:${(RARITIES[it.rarity]||{}).color||'#9CA3AF'}22;color:${(RARITIES[it.rarity]||{}).color||'#9CA3AF'};border-color:${(RARITIES[it.rarity]||{}).color||'#9CA3AF'};">${it.rarity}</span>` : '';
+      const val = it.value ? ` · ₽${fmt(it.value)}` : '';
+      h += `<div class="stash-row" data-add="${g.indexes[0]}" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin:2px 0;background:${it.color||'#22301a'}22;border-left:3px solid ${it.color||'#5f8a3a'};border-radius:4px;cursor:pointer;">
+        <div>
+          <div style="color:#cfe0b8;font-size:.78rem;">${it.name||it.type} ${qty>1?`<span style='color:#8a978a;font-size:.7rem;'>×${qty}</span>`:''}</div>
+          <div style="font-size:.65rem;color:#8a978a;">${size} ${rarBadge}${val}</div>
+        </div>
+        <div style="font-size:.9rem;color:#8fbf5a;font-weight:700;">+</div>
+      </div>`;
+    });
+  }
+  h += '</div>';
+  h += '</div>';
+  h += '</div>';
+
+  // Deploy strip
+  const wCur = resolvedWeapon(save.loadout.weapon);
+  h += `<div class="deploybar">
+      <div class="load">Weapon: <b>${wCur.name}</b>  ·  Ammo <b>${save.ammo[wCur.ammo]||0}</b>  ·  Bag <b>${used}/${capacity}</b>  ·  Stash <b>${(save.stashItems||[]).length}</b></div>
       <button class="btn big gold" id="deployBtn">DEPLOY INTO RAID</button></div>`;
-  box.innerHTML=h;
+  box.innerHTML = h;
+
+  // Handlers
   box.querySelectorAll("[data-pick]").forEach(b=>b.addEventListener("click",()=>{ save.loadout.weapon=b.dataset.pick; persist(); renderDeploy(); }));
+  box.querySelectorAll(".stash-row").forEach(el => el.addEventListener("click", () => {
+    const idx = +el.dataset.add;
+    const it = save.stashItems[idx];
+    if(!it) return;
+    // Verify capacity by simulating placement in previewBag (fresh)
+    const trial = { id:bagId, cols:bp.cols, rows:bp.rows, items: save.loadoutBag.map(x=>{const c={...x};delete c.x;delete c.y;delete c.rotated;return c;}) };
+    // sort trial largest-first for accurate fit test
+    trial.items.sort((a,b)=>(b.w*b.h)-(a.w*a.h));
+    const rebuilt = { id:bagId, cols:bp.cols, rows:bp.rows, items:[] };
+    for(const t of trial.items) bagTryPlace(rebuilt, JSON.parse(JSON.stringify(t)));
+    if(!bagTryPlace(rebuilt, JSON.parse(JSON.stringify(it)))){ toast("No space in bag for that"); return; }
+    // Actually move it
+    save.loadoutBag.push(it);
+    save.stashItems.splice(idx, 1);
+    persist(); renderDeploy();
+  }));
+  box.querySelectorAll(".loadout-item").forEach(el => el.addEventListener("click", () => {
+    const gridIdx = +el.dataset.remove;
+    const item = previewBag.items[gridIdx];
+    if(!item) return;
+    // Find matching item in loadoutBag (any with same name+size) and move it back to stash
+    const back = save.loadoutBag.findIndex(it => (it.name||it.type)===(item.name||item.type) && it.w===item.w && it.h===item.h);
+    if(back >= 0){
+      const moved = save.loadoutBag[back];
+      save.loadoutBag.splice(back, 1);
+      const clean = {...moved}; delete clean.x; delete clean.y; delete clean.rotated;
+      save.stashItems.push(clean);
+    }
+    persist(); renderDeploy();
+  }));
+  document.getElementById("loadClearBtn").addEventListener("click", () => {
+    // Move all loadout items back to stash
+    for(const it of save.loadoutBag){
+      const clean = {...it}; delete clean.x; delete clean.y; delete clean.rotated;
+      save.stashItems.push(clean);
+    }
+    save.loadoutBag = [];
+    persist(); renderDeploy();
+  });
+  document.getElementById("loadAutoBtn").addEventListener("click", () => {
+    // Auto-fill: send loadout back to stash, then greedily pack stash largest-first
+    for(const it of save.loadoutBag){
+      const clean = {...it}; delete clean.x; delete clean.y; delete clean.rotated;
+      save.stashItems.push(clean);
+    }
+    save.loadoutBag = [];
+    save.stashItems.sort((a,b)=>(b.w*b.h)-(a.w*a.h));
+    const testBag = { id:bagId, cols:bp.cols, rows:bp.rows, items:[] };
+    const remaining = [];
+    for(const it of save.stashItems){
+      const copy = JSON.parse(JSON.stringify(it));
+      delete copy.x; delete copy.y; delete copy.rotated;
+      if(bagTryPlace(testBag, copy)) save.loadoutBag.push(it);
+      else remaining.push(it);
+    }
+    save.stashItems = remaining;
+    persist(); renderDeploy();
+  });
   document.getElementById("deployBtn").addEventListener("click",()=>{
     const w=resolvedWeapon(save.loadout.weapon);
     if((save.ammo[w.ammo]||0)<=0){ toast("No "+w.ammo+" ammo! Buy some in the Market."); return; }
@@ -1952,7 +2128,87 @@ document.getElementById("hBag").style.cursor = "pointer";
 document.getElementById("hud").addEventListener("click", (e) => {
   if(e.target.id === "hBag") toggleBag();
 });
-loadSave(); refreshTop(); renderDeploy(); initTouchControls();
+
+// ============================================================= AUTH FLOW
+function renderProfileList(){
+  const box = document.getElementById("profileList");
+  const list = loadProfiles();
+  if(list.length === 0){
+    box.innerHTML = '<div style="color:#6f7c6c;font-size:.85rem;padding:12px;text-align:center;">No accounts yet — create one below.</div>';
+    return;
+  }
+  let h = '';
+  list.sort((a,b) => (b.lastPlayed||0) - (a.lastPlayed||0));
+  for(const p of list){
+    const last = p.lastPlayed ? new Date(p.lastPlayed).toLocaleDateString() : "never";
+    h += `<div class="row" style="cursor:pointer;" data-select="${p.name}">
+      <div><div class="nm">${p.name}</div><div class="sub">Last played: ${last}</div></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn gold" data-select-btn="${p.name}">Play</button>
+        <button class="btn red" data-delete="${p.name}">Delete</button>
+      </div>
+    </div>`;
+  }
+  box.innerHTML = h;
+  box.querySelectorAll("[data-select-btn]").forEach(b => b.addEventListener("click", e => {
+    e.stopPropagation();
+    selectProfile(b.dataset.selectBtn);
+  }));
+  box.querySelectorAll("[data-delete]").forEach(b => b.addEventListener("click", e => {
+    e.stopPropagation();
+    const name = b.dataset.delete;
+    if(!confirm("Delete account \"" + name + "\"?  All progress on it will be lost.")) return;
+    const remaining = loadProfiles().filter(p => p.name !== name);
+    saveProfiles(remaining);
+    try { localStorage.removeItem(saveKeyFor(name)); } catch(e) {}
+    if(currentProfile() === name) setCurrentProfile(null);
+    renderProfileList();
+  }));
+  box.querySelectorAll("[data-select]").forEach(el => el.addEventListener("click", () => selectProfile(el.dataset.select)));
+}
+function selectProfile(name){
+  setCurrentProfile(name);
+  const list = loadProfiles();
+  const p = list.find(x => x.name === name);
+  if(p){ p.lastPlayed = Date.now(); saveProfiles(list); }
+  document.getElementById("login").classList.remove("show");
+  document.getElementById("menu").classList.add("show");
+  loadSave(); refreshTop(); renderDeploy();
+  state = "menu";
+}
+function createProfile(){
+  const input = document.getElementById("newProfileName");
+  const name = (input.value || "").trim();
+  if(!name){ toast("Enter an account name"); return; }
+  if(name.length > 16){ toast("Name too long"); return; }
+  const list = loadProfiles();
+  if(list.find(p => p.name.toLowerCase() === name.toLowerCase())){ toast("That name is taken"); return; }
+  list.push({ name, created: Date.now(), lastPlayed: Date.now() });
+  saveProfiles(list);
+  input.value = "";
+  selectProfile(name);
+}
+function signOut(){
+  if(!confirm("Sign out?  Your progress is auto-saved.")) return;
+  setCurrentProfile(null);
+  document.getElementById("menu").classList.remove("show");
+  document.getElementById("login").classList.add("show");
+  renderProfileList();
+  state = "menu";
+}
+document.getElementById("createProfileBtn").addEventListener("click", createProfile);
+document.getElementById("newProfileName").addEventListener("keydown", e => {
+  if(e.key === "Enter") createProfile();
+});
+document.getElementById("signOutBtn").addEventListener("click", signOut);
+
+// Bootstrap: if we already have a current profile, jump straight into the menu
+initTouchControls();
+if(currentProfile()){
+  selectProfile(currentProfile());
+} else {
+  renderProfileList();
+}
 })();
 </script>
 </body>
