@@ -160,14 +160,26 @@
     background:rgba(143,191,90,.55);border:2px solid rgba(207,224,184,.7);
     left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;transition:none;}
   .tc-stick.right .tc-thumb{background:rgba(199,74,58,.55);border-color:rgba(240,202,191,.7);}
-  .tc-btns{position:absolute;right:calc(20px + env(safe-area-inset-right));
+  .tc-btns{position:absolute;right:calc(16px + env(safe-area-inset-right));
     bottom:calc(160px + env(safe-area-inset-bottom));display:flex;flex-direction:column;
-    gap:10px;pointer-events:auto;align-items:center;}
-  .tc-btn{width:58px;height:58px;border-radius:50%;background:rgba(30,40,25,.7);
-    border:2px solid rgba(143,191,90,.5);color:#cfe0b8;font-family:inherit;
-    font-size:.7rem;font-weight:700;letter-spacing:.05em;display:flex;
-    align-items:center;justify-content:center;touch-action:manipulation;padding:0;}
-  .tc-btn:active,.tc-btn.pressed{background:rgba(74,105,45,.75);transform:scale(.94);}
+    gap:8px;pointer-events:auto;align-items:center;}
+  .tc-btn{width:66px;height:66px;border-radius:50%;background:rgba(20,26,18,.85);
+    border:2px solid rgba(143,191,90,.6);color:#e6f0d8;font-family:inherit;
+    font-weight:700;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;touch-action:manipulation;padding:0;line-height:1;
+    box-shadow:0 2px 8px rgba(0,0,0,.45);}
+  .tc-btn .k{font-size:1.15rem;letter-spacing:.04em;}
+  .tc-btn .l{font-size:.52rem;color:#9fb08f;letter-spacing:.06em;
+    margin-top:3px;text-transform:uppercase;font-weight:600;}
+  .tc-btn:active,.tc-btn.pressed{background:rgba(90,125,55,.85);transform:scale(.93);border-color:#c7d9a8;}
+  .tc-btn.reload{border-color:rgba(143,191,90,.75);}
+  .tc-btn.heal{border-color:rgba(199,74,58,.75);}
+  .tc-btn.interact{border-color:rgba(199,162,74,.75);}
+  .tc-btn.grenade{border-color:rgba(90,138,58,.85);}
+  .tc-btn.food{border-color:rgba(199,138,58,.75);}
+  .tc-btn.drink{border-color:rgba(58,134,199,.75);}
+  .tc-btn.bag{border-color:rgba(207,224,184,.75);}
+  .tc-btn.sprint{border-color:rgba(180,180,180,.75);}
   .tc-wpn-row{position:absolute;left:calc(170px + env(safe-area-inset-left));
     bottom:calc(20px + env(safe-area-inset-bottom));display:flex;gap:8px;pointer-events:auto;}
   .tc-wpn{width:46px;height:46px;border-radius:8px;background:rgba(30,40,25,.65);
@@ -346,14 +358,14 @@
   <div class="tc-stick left" id="tcMove"><div class="tc-thumb"></div></div>
   <div class="tc-stick right" id="tcAim"><div class="tc-thumb"></div></div>
   <div class="tc-btns">
-    <button class="tc-btn" id="tcReload" aria-label="Reload">R</button>
-    <button class="tc-btn" id="tcHeal" aria-label="Heal">H</button>
-    <button class="tc-btn" id="tcInteract" aria-label="Interact">E</button>
-    <button class="tc-btn" id="tcGrenade" aria-label="Grenade">G</button>
-    <button class="tc-btn" id="tcFood" aria-label="Eat">F</button>
-    <button class="tc-btn" id="tcDrink" aria-label="Drink">V</button>
-    <button class="tc-btn" id="tcBag" aria-label="Backpack">BAG</button>
-    <button class="tc-btn" id="tcSprint" aria-label="Sprint">SPR</button>
+    <button class="tc-btn reload"   id="tcReload"   aria-label="Reload"><span class="k">R</span><span class="l">Reload</span></button>
+    <button class="tc-btn heal"     id="tcHeal"     aria-label="Heal"><span class="k">H</span><span class="l">Heal</span></button>
+    <button class="tc-btn interact" id="tcInteract" aria-label="Interact"><span class="k">E</span><span class="l">Loot</span></button>
+    <button class="tc-btn grenade"  id="tcGrenade"  aria-label="Grenade"><span class="k">G</span><span class="l">Nade</span></button>
+    <button class="tc-btn food"     id="tcFood"     aria-label="Eat"><span class="k">F</span><span class="l">Eat</span></button>
+    <button class="tc-btn drink"    id="tcDrink"    aria-label="Drink"><span class="k">V</span><span class="l">Drink</span></button>
+    <button class="tc-btn bag"      id="tcBag"      aria-label="Backpack"><span class="k">B</span><span class="l">Bag</span></button>
+    <button class="tc-btn sprint"   id="tcSprint"   aria-label="Sprint"><span class="k">S</span><span class="l">Sprint</span></button>
   </div>
   <div class="tc-wpn-row">
     <button class="tc-wpn" id="tcWpn1" aria-label="Weapon 1">1</button>
@@ -806,13 +818,15 @@ function buildMap(){
   ];
   blocks.forEach(b=>walls.push({x:b[0],y:b[1],w:b[2],h:b[3]}));
   // crates
+  const CONTAINER_TYPES = ["wooden","ammo","duffel","toolbox","briefcase"];
   let tries=0;
   while(crates.length<16 && tries<400){
     tries++;
     const x=rr(120,WORLD.w-120), y=rr(120,WORLD.h-120);
     if(walls.some(r=>circleRect(x,y,26,r))) continue;
     if(dist2(x,y,WORLD.w/2,WORLD.h/2)<200*200) continue;
-    crates.push({x,y,r:15,open:false,opening:0});
+    const type = CONTAINER_TYPES[Math.floor(Math.random()*CONTAINER_TYPES.length)];
+    crates.push({x,y,r:15,open:false,opening:0,type});
   }
   // extraction zones (corners)
   extracts.push({x:80,y:80,w:150,h:150,name:"NW Drain"});
@@ -1466,6 +1480,132 @@ function drawEnemy(e){
   }
 }
 
+// ============================================================= LOOT CONTAINERS
+function drawContainer(c){
+  const x = c.x - 15, y = c.y - 15, s = 30;
+  const open = c.open;
+  const t = c.type || "wooden";
+  ctx.save();
+  // Shadow beneath every container
+  ctx.fillStyle = "rgba(0,0,0,.28)";
+  ctx.beginPath(); ctx.ellipse(c.x, c.y+16, 15, 3, 0, 0, 7); ctx.fill();
+
+  if(t === "wooden"){
+    // Wood crate — planks with iron corners
+    const base = open ? "#3a3320" : "#8b6b32";
+    const dark = open ? "#22201a" : "#5a4218";
+    ctx.fillStyle = base; ctx.fillRect(x, y, s, s);
+    ctx.strokeStyle = "#3a2818"; ctx.lineWidth = 1;
+    // plank divisions
+    ctx.beginPath();
+    ctx.moveTo(x, y+10); ctx.lineTo(x+s, y+10);
+    ctx.moveTo(x, y+20); ctx.lineTo(x+s, y+20);
+    ctx.stroke();
+    // corner brackets
+    ctx.fillStyle = "#2a2418";
+    ctx.fillRect(x-1, y-1, 5, 5); ctx.fillRect(x+s-4, y-1, 5, 5);
+    ctx.fillRect(x-1, y+s-4, 5, 5); ctx.fillRect(x+s-4, y+s-4, 5, 5);
+    ctx.strokeStyle = dark; ctx.lineWidth = 2; ctx.strokeRect(x, y, s, s);
+  }
+  else if(t === "ammo"){
+    // Ammo can — olive with lid latch
+    const base = open ? "#3a4022" : "#607040";
+    ctx.fillStyle = base; ctx.fillRect(x, y+4, s, s-4);
+    // lid
+    ctx.fillStyle = open ? "#2a3018" : "#4a5830";
+    ctx.fillRect(x, y, s, 6);
+    // latch on top
+    ctx.fillStyle = "#2a2418";
+    ctx.fillRect(x+11, y-2, 8, 4);
+    // rivets
+    ctx.fillStyle = "#1a1a10";
+    for(let i=0; i<3; i++){
+      ctx.beginPath(); ctx.arc(x+4+i*11, y+10, 1.2, 0, 7); ctx.fill();
+    }
+    ctx.strokeStyle = "#22261a"; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, s, s);
+    // yellow stripe / cal label
+    if(!open){
+      ctx.fillStyle = "#c7a24a";
+      ctx.fillRect(x+3, y+s-8, s-6, 3);
+    }
+  }
+  else if(t === "duffel"){
+    // Duffel bag — rounded, dark green, with strap
+    const base = open ? "#22261a" : "#3a4a28";
+    ctx.fillStyle = base;
+    // Rounded rect
+    const rr = 8;
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.lineTo(x+s-rr, y); ctx.quadraticCurveTo(x+s, y, x+s, y+rr);
+    ctx.lineTo(x+s, y+s-rr); ctx.quadraticCurveTo(x+s, y+s, x+s-rr, y+s);
+    ctx.lineTo(x+rr, y+s); ctx.quadraticCurveTo(x, y+s, x, y+s-rr);
+    ctx.lineTo(x, y+rr); ctx.quadraticCurveTo(x, y, x+rr, y);
+    ctx.closePath(); ctx.fill();
+    // Handle/strap
+    ctx.strokeStyle = open ? "#181c10" : "#22301a"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x+15, y+3, 8, Math.PI, 0); ctx.stroke();
+    // Zipper
+    ctx.strokeStyle = "#c7a24a"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x+4, y+15); ctx.lineTo(x+s-4, y+15); ctx.stroke();
+    ctx.strokeStyle = "#1a1a10"; ctx.lineWidth = 1; ctx.stroke();
+  }
+  else if(t === "toolbox"){
+    // Toolbox — red/orange metal with handle
+    const base = open ? "#4a1a10" : "#b04024";
+    ctx.fillStyle = base; ctx.fillRect(x, y+4, s, s-4);
+    // Lid (slightly darker)
+    ctx.fillStyle = open ? "#3a1408" : "#8a3018";
+    ctx.fillRect(x, y+4, s, 4);
+    // Handle on top
+    ctx.strokeStyle = "#2a1408"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x+15, y+4, 9, Math.PI, 0); ctx.stroke();
+    // Latch
+    ctx.fillStyle = "#2a1408";
+    ctx.fillRect(x+12, y+14, 6, 3);
+    // hinge line
+    ctx.strokeStyle = "#2a1408"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, y+9); ctx.lineTo(x+s, y+9); ctx.stroke();
+    ctx.strokeStyle = "#2a1408"; ctx.lineWidth = 1.5; ctx.strokeRect(x, y+4, s, s-4);
+  }
+  else if(t === "briefcase"){
+    // Briefcase — dark grey with handle and clasps
+    const base = open ? "#22252a" : "#3a3f48";
+    ctx.fillStyle = base; ctx.fillRect(x, y+4, s, s-4);
+    // Handle
+    ctx.strokeStyle = "#181a20"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x+15, y+3, 7, Math.PI, 0); ctx.stroke();
+    // Two clasps
+    ctx.fillStyle = "#c7a24a";
+    ctx.fillRect(x+7, y+11, 4, 3);
+    ctx.fillRect(x+19, y+11, 4, 3);
+    // Center seam
+    ctx.strokeStyle = "#181a20"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, y+14); ctx.lineTo(x+s, y+14); ctx.stroke();
+    // Combination dial hint
+    ctx.strokeStyle = "#5a5f68"; ctx.lineWidth = 1;
+    ctx.strokeRect(x+2, y+18, 6, 4);
+    ctx.strokeRect(x+22, y+18, 6, 4);
+    ctx.strokeStyle = "#181a20"; ctx.lineWidth = 1.5; ctx.strokeRect(x, y+4, s, s-4);
+  }
+  else {
+    // Fallback = wooden
+    ctx.fillStyle = open ? "#3a3320" : "#8b6b32";
+    ctx.fillRect(x, y, s, s);
+    ctx.strokeStyle = "#3a2818"; ctx.strokeRect(x, y, s, s);
+  }
+
+  // "open" indicator overlay
+  if(open){
+    ctx.strokeStyle = "rgba(0,0,0,.4)"; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x+4, y+4); ctx.lineTo(x+s-4, y+s-4);
+    ctx.moveTo(x+s-4, y+4); ctx.lineTo(x+4, y+s-4);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // ============================================================= RENDER
 function render(){
   ctx.clearRect(0,0,VW,VH);
@@ -1491,14 +1631,8 @@ function render(){
     ctx.fillText("EXTRACT: "+z.name, z.x+z.w/2, z.y+z.h/2);
   }
 
-  // crates
-  for(const c of crates){
-    ctx.fillStyle=c.open?"#3a3320":"#6b5a2a";
-    ctx.fillRect(c.x-15,c.y-15,30,30);
-    ctx.strokeStyle=c.open?"#2a2618":"#c7a24a"; ctx.lineWidth=2;
-    ctx.strokeRect(c.x-15,c.y-15,30,30);
-    if(!c.open){ ctx.strokeStyle="#8a6f26"; ctx.beginPath();ctx.moveTo(c.x-15,c.y);ctx.lineTo(c.x+15,c.y);ctx.stroke(); }
-  }
+  // crates (5 container variants with distinct art)
+  for(const c of crates){ drawContainer(c); }
 
   // walls
   for(const r of walls){
@@ -1979,45 +2113,292 @@ function drawGun(cnv,wid){
   if(!cnv) return; const g=cnv.getContext("2d"); const cy=68;
   g.clearRect(0,0,cnv.width,cnv.height);
   const ch=modsFor(wid);
-  const metal="#4a5540", metal2="#333c2a", accent="#8fbf5a", gold="#c7a24a", dark="#181d12";
-  // stock (back)
-  if(ch.stock!=="none"){
-    g.fillStyle=accent;
-    if(ch.stock==="fold"){ g.fillRect(74,cy-5,40,9); }
-    else { g.fillRect(46,cy-11,70,22); g.fillStyle=metal2; g.fillRect(60,cy-6,40,12); }
+  const metal="#5a6555", metalD="#2a3226", metalL="#7d8877",
+        wood="#8b6a3a", woodD="#5a4218",
+        accent="#9fb864", gold="#d0aa4a", dark="#141812", red="#c74a3a";
+
+  // ---------- per-weapon base silhouette ----------
+  if(wid === "pistol"){
+    // ---- Pistol: slide + frame + grip ----
+    // Slide on top
+    g.fillStyle = metalL; g.fillRect(120, cy-11, 68, 12);
+    g.fillStyle = metal;  g.fillRect(120, cy-1,  68, 8);
+    g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(120, cy-11, 68, 20);
+    // Rear sight
+    g.fillStyle = dark; g.fillRect(122, cy-14, 4, 4);
+    // Front sight
+    g.fillRect(184, cy-14, 3, 4);
+    // Barrel (short, integrated into slide)
+    g.fillStyle = metalD; g.fillRect(188, cy-4, 14, 6);
+    // Trigger guard (curved cutout)
+    g.strokeStyle = metalD; g.lineWidth = 2;
+    g.beginPath(); g.arc(148, cy+16, 8, 0.2, Math.PI - 0.2); g.stroke();
+    // Trigger
+    g.fillStyle = dark; g.fillRect(146, cy+11, 4, 5);
+    // Grip (angled backward)
+    g.save(); g.translate(138, cy+9); g.rotate(0.3);
+    g.fillStyle = ch.pistolgrip === "none" ? metalD : accent;
+    g.fillRect(0, 0, 14, 32);
+    g.fillStyle = dark;
+    for(let i=0;i<4;i++) g.fillRect(2, 4+i*7, 10, 2); // grip lines
+    g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(0, 0, 14, 32);
+    g.restore();
+    // Ejection port cutout
+    g.fillStyle = dark; g.fillRect(150, cy-8, 22, 4);
   }
-  // receiver
-  g.fillStyle=metal; g.fillRect(114,cy-13,68,24);
-  g.strokeStyle=dark; g.lineWidth=2; g.strokeRect(114,cy-13,68,24);
-  // barrel
-  const tip = ch.barrel==="long"?252 : ch.barrel==="short"?208 : ch.barrel==="heavy"?226 : 218;
-  const bw = ch.barrel==="heavy"?9:5;
-  g.fillStyle=metal2; g.fillRect(182,cy-bw/2,tip-182,bw);
-  // handguard
-  if(ch.handguard!=="none"){ const hw=Math.min(tip-190,58); g.fillStyle=accent; g.fillRect(182,cy-10,hw,20); g.strokeStyle=dark; g.strokeRect(182,cy-10,hw,20); }
-  // muzzle
-  if(ch.muzzle!=="none"){ g.fillStyle=gold;
-    if(ch.muzzle==="supp") g.fillRect(tip,cy-8,36,16);
-    else if(ch.muzzle==="comp"){ g.fillRect(tip,cy-6,20,12); g.fillStyle=dark; g.fillRect(tip+5,cy-6,2,12); g.fillRect(tip+11,cy-6,2,12); }
-    else g.fillRect(tip,cy-6,12,12);
+  else if(wid === "smg"){
+    // ---- SMG (MP5-ish): main body with slanted foregrip ----
+    // Retractable stock or wire
+    if(ch.stock !== "none"){
+      g.fillStyle = ch.stock === "fold" ? metal : accent;
+      g.fillRect(50, cy-5, 66, 9);
+      g.fillStyle = metalD; g.fillRect(64, cy-3, 40, 5);
+      g.strokeStyle = dark; g.lineWidth = 1; g.strokeRect(50, cy-5, 66, 9);
+    }
+    // Receiver — rounded/tubular
+    g.fillStyle = metal;
+    g.beginPath(); g.moveTo(116, cy-14); g.lineTo(190, cy-14);
+    g.lineTo(190, cy+8); g.lineTo(116, cy+8);
+    g.closePath(); g.fill();
+    g.strokeStyle = dark; g.lineWidth = 1.5; g.stroke();
+    // Cocking tube on top
+    g.fillStyle = metalD; g.fillRect(120, cy-18, 60, 5);
+    g.strokeStyle = dark; g.strokeRect(120, cy-18, 60, 5);
+    // Barrel
+    const tip = 218;
+    g.fillStyle = metalD; g.fillRect(190, cy-4, tip-190, 8);
+    g.strokeStyle = dark; g.strokeRect(190, cy-4, tip-190, 8);
+    // Magazine (curved, forward)
+    if(ch.magazine === "drum"){
+      g.fillStyle = accent; g.beginPath(); g.arc(150, cy+30, 18, 0, 7); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 2; g.stroke();
+    } else {
+      const md = ch.magazine === "ext" ? 40 : ch.magazine === "poly" ? 30 : 22;
+      g.fillStyle = ch.magazine === "none" ? metalD : accent;
+      g.save(); g.translate(148, cy+8); g.rotate(-0.05);
+      g.fillRect(0, 0, 20, md); g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(0, 0, 20, md);
+      g.restore();
+    }
+    // Trigger + guard
+    g.strokeStyle = metalD; g.lineWidth = 2;
+    g.beginPath(); g.arc(170, cy+15, 7, 0.3, Math.PI - 0.3); g.stroke();
+    // Foregrip (angled forward)
+    if(ch.handguard !== "none"){
+      g.save(); g.translate(186, cy+8); g.rotate(-0.5);
+      g.fillStyle = accent; g.fillRect(0, 0, 12, 20);
+      g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(0, 0, 12, 20);
+      g.restore();
+    }
   }
-  // magazine (below)
-  if(ch.magazine==="drum"){ g.fillStyle=accent; g.beginPath(); g.arc(142,cy+28,18,0,7); g.fill(); g.strokeStyle=dark; g.lineWidth=2; g.stroke(); }
-  else { const md = ch.magazine==="ext"?36 : ch.magazine==="poly"?28 : 20;
-    g.fillStyle= ch.magazine==="none"?metal2:accent; g.fillRect(130,cy+11,22,md); g.strokeStyle=dark; g.strokeRect(130,cy+11,22,md); }
-  // pistol grip
-  g.save(); g.translate(162,cy+11); g.rotate(0.34); g.fillStyle= ch.pistolgrip==="none"?metal2:accent; g.fillRect(0,0,12,26); g.strokeStyle=dark; g.strokeRect(0,0,12,26); g.restore();
-  // sight / optic (top)
-  if(ch.sight!=="none"){ g.fillStyle=gold;
-    if(ch.sight==="scope"){ g.fillRect(128,cy-24,46,8); g.fillRect(130,cy-16,6,6); g.fillRect(166,cy-16,6,6); }
-    else if(ch.sight==="holo"){ g.fillRect(132,cy-22,26,11); }
-    else { g.fillRect(136,cy-21,12,10); }
+  else if(wid === "shotgun"){
+    // ---- Shotgun: wood stock + pump-action tube ----
+    // Stock (wooden)
+    if(ch.stock !== "none"){
+      g.fillStyle = wood; g.fillRect(46, cy-8, 72, 20);
+      g.fillStyle = woodD; g.fillRect(50, cy-4, 50, 3); // grain
+      g.fillRect(50, cy+2, 50, 3);
+      g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(46, cy-8, 72, 20);
+      // Recoil pad
+      g.fillStyle = "#1a0f08"; g.fillRect(44, cy-8, 4, 20);
+    }
+    // Receiver (blued steel)
+    g.fillStyle = metalD; g.fillRect(118, cy-12, 40, 22);
+    g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(118, cy-12, 40, 22);
+    // Ejection port
+    g.fillStyle = dark; g.fillRect(122, cy-2, 22, 5);
+    // Barrel (long, single tube)
+    const tip = 240;
+    g.fillStyle = metalD; g.fillRect(158, cy-5, tip-158, 10);
+    g.strokeStyle = dark; g.strokeRect(158, cy-5, tip-158, 10);
+    // Bead sight at tip
+    g.fillStyle = gold; g.beginPath(); g.arc(tip-2, cy-4, 1.6, 0, 7); g.fill();
+    // Tube magazine (under barrel)
+    g.fillStyle = metal; g.fillRect(158, cy+8, tip-160, 7);
+    g.strokeStyle = dark; g.strokeRect(158, cy+8, tip-160, 7);
+    // Pump handle (forend, wood)
+    g.fillStyle = wood; g.fillRect(178, cy+6, 34, 14);
+    g.fillStyle = woodD;
+    for(let i=0;i<5;i++) g.fillRect(180+i*6, cy+8, 2, 10); // pump grooves
+    g.strokeStyle = dark; g.lineWidth = 1; g.strokeRect(178, cy+6, 34, 14);
+    // Trigger guard
+    g.strokeStyle = metalD; g.lineWidth = 2;
+    g.beginPath(); g.arc(140, cy+14, 8, 0.3, Math.PI - 0.3); g.stroke();
   }
-  // tactical (under barrel)
-  if(ch.tactical!=="none"){ g.fillStyle= ch.tactical==="laser"?"#c74a3a":"#e6e6a0"; g.fillRect(192,cy+bw/2+3,11,5);
-    if(ch.tactical==="laser"){ g.strokeStyle="rgba(199,74,58,.5)"; g.lineWidth=1; g.beginPath(); g.moveTo(203,cy+bw/2+5); g.lineTo(cnv.width,cy+bw/2+5); g.stroke(); } }
-  // name
-  g.fillStyle="#6f7c6c"; g.font="10px monospace"; g.textAlign="left"; g.fillText(WEAPONS[wid].name,10,16);
+  else if(wid === "rifle"){
+    // ---- AK-style rifle: wood + curved magazine ----
+    if(ch.stock !== "none"){
+      g.fillStyle = ch.stock === "fold" ? metal : wood;
+      g.fillRect(48, cy-9, 68, 18);
+      if(ch.stock !== "fold"){
+        g.fillStyle = woodD; g.fillRect(52, cy-6, 60, 2);
+        g.fillRect(52, cy+4, 60, 2);
+      }
+      g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(48, cy-9, 68, 18);
+    }
+    // Receiver
+    g.fillStyle = metal; g.fillRect(116, cy-12, 46, 22);
+    g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(116, cy-12, 46, 22);
+    // Charging handle bulge
+    g.fillStyle = metalD; g.fillRect(120, cy-15, 12, 5);
+    // Gas tube on top
+    g.fillStyle = metalD; g.fillRect(162, cy-8, 40, 5);
+    // Front sight post
+    g.fillStyle = dark; g.fillRect(200, cy-13, 4, 6);
+    // Barrel
+    const tip = ch.barrel === "long" ? 252 : ch.barrel === "short" ? 218 : ch.barrel === "heavy" ? 236 : 228;
+    const bw = ch.barrel === "heavy" ? 9 : 6;
+    g.fillStyle = metalD; g.fillRect(162, cy-bw/2+2, tip-162, bw);
+    g.strokeStyle = dark; g.strokeRect(162, cy-bw/2+2, tip-162, bw);
+    // Handguard (wooden if none, else accent)
+    if(ch.handguard !== "none" || true){
+      const hguard = ch.handguard === "none" ? wood : accent;
+      g.fillStyle = hguard; g.fillRect(162, cy+5, 40, 12);
+      g.fillStyle = woodD;
+      if(ch.handguard === "none"){
+        for(let i=0;i<4;i++) g.fillRect(166+i*10, cy+7, 6, 2);
+      }
+      g.strokeStyle = dark; g.strokeRect(162, cy+5, 40, 12);
+    }
+    // Curved magazine (banana clip)
+    if(ch.magazine === "drum"){
+      g.fillStyle = accent; g.beginPath(); g.arc(140, cy+30, 18, 0, 7); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 2; g.stroke();
+    } else {
+      const md = ch.magazine === "ext" ? 40 : ch.magazine === "poly" ? 32 : 24;
+      g.fillStyle = ch.magazine === "none" ? metalD : accent;
+      g.save(); g.translate(130, cy+10); g.rotate(-0.15);
+      g.beginPath(); g.moveTo(0,0); g.lineTo(22,0); g.lineTo(24,md); g.lineTo(-2,md); g.closePath();
+      g.fill(); g.strokeStyle = dark; g.lineWidth = 1.5; g.stroke();
+      g.restore();
+    }
+    // Pistol grip
+    g.save(); g.translate(158, cy+11); g.rotate(0.4);
+    g.fillStyle = ch.pistolgrip === "none" ? wood : accent;
+    g.fillRect(0, 0, 12, 24);
+    g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(0, 0, 12, 24);
+    g.restore();
+    // Trigger guard
+    g.strokeStyle = metalD; g.lineWidth = 2;
+    g.beginPath(); g.arc(148, cy+14, 8, 0.3, Math.PI - 0.3); g.stroke();
+  }
+  else if(wid === "sniper"){
+    // ---- Bolt sniper: long barrel + prominent bolt + high scope ----
+    if(ch.stock !== "none"){
+      g.fillStyle = wood; g.fillRect(42, cy-10, 76, 22);
+      g.fillStyle = woodD; g.fillRect(46, cy-6, 68, 2);
+      g.fillRect(46, cy+4, 68, 2);
+      g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(42, cy-10, 76, 22);
+      // Cheek riser
+      g.fillStyle = woodD; g.fillRect(64, cy-14, 30, 4);
+    }
+    // Receiver (long)
+    g.fillStyle = metal; g.fillRect(118, cy-11, 54, 20);
+    g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(118, cy-11, 54, 20);
+    // Bolt handle (right side)
+    g.fillStyle = metalD;
+    g.fillRect(148, cy-14, 4, 6);
+    g.beginPath(); g.arc(150, cy-16, 3, 0, 7); g.fill();
+    g.strokeStyle = dark; g.stroke();
+    // Barrel (very long)
+    const tip = ch.barrel === "long" ? 268 : ch.barrel === "heavy" ? 258 : 250;
+    const bw = ch.barrel === "heavy" ? 10 : 7;
+    g.fillStyle = metalD; g.fillRect(172, cy-bw/2, tip-172, bw);
+    g.strokeStyle = dark; g.strokeRect(172, cy-bw/2, tip-172, bw);
+    // Magazine (small internal)
+    const md = ch.magazine === "ext" ? 24 : 16;
+    g.fillStyle = ch.magazine === "none" ? metalD : accent;
+    g.fillRect(134, cy+9, 20, md);
+    g.strokeStyle = dark; g.strokeRect(134, cy+9, 20, md);
+    // Pistol grip
+    g.save(); g.translate(160, cy+9); g.rotate(0.35);
+    g.fillStyle = ch.pistolgrip === "none" ? wood : accent;
+    g.fillRect(0, 0, 12, 24);
+    g.strokeStyle = dark; g.lineWidth = 1.5; g.strokeRect(0, 0, 12, 24);
+    g.restore();
+    // Trigger guard
+    g.strokeStyle = metalD; g.lineWidth = 2;
+    g.beginPath(); g.arc(146, cy+13, 8, 0.3, Math.PI - 0.3); g.stroke();
+  }
+
+  // ---------- muzzle attachment (all weapons except pistol get this) ----------
+  if(wid !== "pistol" && ch.muzzle !== "none"){
+    const tipMap = { smg:218, shotgun:240, rifle:228, sniper:250 };
+    const tip = tipMap[wid] || 218;
+    g.fillStyle = gold;
+    if(ch.muzzle === "supp"){
+      // Suppressor with grooves
+      g.fillRect(tip, cy-8, 40, 16);
+      g.fillStyle = dark;
+      for(let i=0;i<4;i++) g.fillRect(tip+6+i*8, cy-8, 1.5, 16);
+      g.strokeStyle = dark; g.lineWidth = 1; g.strokeRect(tip, cy-8, 40, 16);
+    } else if(ch.muzzle === "comp"){
+      // Compensator with vertical ports
+      g.fillRect(tip, cy-6, 22, 12);
+      g.fillStyle = dark;
+      g.fillRect(tip+4, cy-6, 2, 12);
+      g.fillRect(tip+10, cy-6, 2, 12);
+      g.fillRect(tip+16, cy-6, 2, 12);
+    } else if(ch.muzzle === "brake"){
+      g.fillRect(tip, cy-6, 14, 12);
+      g.fillStyle = dark;
+      g.fillRect(tip+3, cy-6, 2, 12);
+      g.fillRect(tip+9, cy-6, 2, 12);
+    }
+  }
+
+  // ---------- sight / optic (top) ----------
+  if(ch.sight !== "none"){
+    // Rail mount below optic
+    g.fillStyle = metalD;
+    if(wid === "pistol") g.fillRect(135, cy-13, 30, 3);
+    else g.fillRect(130, cy-15, 40, 3);
+    if(ch.sight === "scope"){
+      // Tube scope with lens rings
+      const sx = wid === "sniper" ? 128 : 132;
+      g.fillStyle = dark; g.fillRect(sx, cy-24, 50, 8);
+      g.strokeStyle = "#3a4033"; g.lineWidth = 1; g.strokeRect(sx, cy-24, 50, 8);
+      // Objective bell (front)
+      g.fillStyle = "#5a6555"; g.fillRect(sx-4, cy-26, 6, 12);
+      g.fillStyle = "#4a4a30"; g.fillRect(sx-3, cy-24, 4, 8); // lens
+      // Eyepiece (back)
+      g.fillStyle = "#5a6555"; g.fillRect(sx+50, cy-26, 6, 12);
+      g.fillStyle = "#4a4a30"; g.fillRect(sx+51, cy-24, 4, 8);
+      // Turret on top
+      g.fillStyle = metalD; g.fillRect(sx+22, cy-28, 6, 6);
+    } else if(ch.sight === "holo"){
+      // Holographic — square hood
+      g.fillStyle = dark; g.fillRect(132, cy-23, 28, 11);
+      g.fillStyle = "#c74a3a"; g.fillRect(140, cy-19, 12, 4); // red reticle window
+      g.strokeStyle = dark; g.lineWidth = 1; g.strokeRect(132, cy-23, 28, 11);
+    } else if(ch.sight === "reddot"){
+      // Red dot — compact
+      g.fillStyle = dark; g.fillRect(138, cy-22, 14, 10);
+      g.fillStyle = red;
+      g.beginPath(); g.arc(145, cy-17, 1.4, 0, 7); g.fill();
+      g.strokeStyle = dark; g.lineWidth = 1; g.strokeRect(138, cy-22, 14, 10);
+    }
+  }
+
+  // ---------- tactical (under barrel) ----------
+  if(ch.tactical !== "none"){
+    const tipMap = { pistol:200, smg:210, shotgun:236, rifle:220, sniper:230 };
+    const tipX = tipMap[wid] || 210;
+    if(ch.tactical === "laser"){
+      g.fillStyle = "#4a2018"; g.fillRect(tipX-14, cy+8, 12, 6);
+      g.fillStyle = "#c74a3a";
+      g.beginPath(); g.arc(tipX-3, cy+11, 1.6, 0, 7); g.fill();
+      g.strokeStyle = "rgba(199,74,58,.4)"; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(tipX, cy+11); g.lineTo(cnv.width, cy+11); g.stroke();
+    } else {
+      g.fillStyle = "#3a3a20"; g.fillRect(tipX-14, cy+8, 12, 6);
+      g.fillStyle = "#f0e6a0";
+      g.beginPath(); g.arc(tipX-3, cy+11, 2, 0, 7); g.fill();
+    }
+  }
+
+  // ---------- name label ----------
+  g.fillStyle = "#8a978a"; g.font = "bold 11px monospace"; g.textAlign = "left";
+  g.fillText(WEAPONS[wid].name, 10, 16);
 }
 
 function renderStash(){
