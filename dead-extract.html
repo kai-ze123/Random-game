@@ -155,11 +155,21 @@
     background:rgba(30,40,25,.35);border:2px solid rgba(143,191,90,.35);
     pointer-events:auto;touch-action:none;}
   .tc-stick.left{left:calc(20px + env(safe-area-inset-left));bottom:calc(20px + env(safe-area-inset-bottom));}
-  .tc-stick.right{right:calc(20px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));}
   .tc-thumb{position:absolute;width:60px;height:60px;border-radius:50%;
     background:rgba(143,191,90,.55);border:2px solid rgba(207,224,184,.7);
     left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;transition:none;}
-  .tc-stick.right .tc-thumb{background:rgba(199,74,58,.55);border-color:rgba(240,202,191,.7);}
+  /* Big fire button replaces the old aim joystick */
+  .tc-fire{position:absolute;right:calc(20px + env(safe-area-inset-right));
+    bottom:calc(20px + env(safe-area-inset-bottom));
+    width:130px;height:130px;border-radius:50%;
+    background:radial-gradient(circle at 40% 35%, rgba(240,120,90,.9), rgba(160,42,32,.9) 65%, rgba(80,20,15,.95));
+    border:3px solid rgba(240,180,150,.85);
+    color:#fff2ec;font-weight:900;font-size:1.15rem;letter-spacing:.16em;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 22px rgba(160,42,32,.55), inset 0 -6px 14px rgba(0,0,0,.35);
+    pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;
+    transition:transform .06s, box-shadow .06s;font-family:inherit;}
+  .tc-fire.pressed{transform:scale(.94);box-shadow:0 3px 12px rgba(160,42,32,.7), inset 0 -4px 10px rgba(0,0,0,.5);}
   .tc-btns{position:absolute;right:calc(16px + env(safe-area-inset-right));
     bottom:calc(160px + env(safe-area-inset-bottom));display:flex;flex-direction:column;
     gap:8px;pointer-events:auto;align-items:center;}
@@ -277,19 +287,21 @@
 
     <div class="tabs">
       <div class="tab active" data-tab="deploy">Deploy</div>
+      <div class="tab" data-tab="character">Character</div>
       <div class="tab" data-tab="shop">Market</div>
       <div class="tab" data-tab="gunsmith">Gunsmith</div>
       <div class="tab" data-tab="stash">Stash</div>
     </div>
 
     <div class="tabbody show" id="tab-deploy"></div>
+    <div class="tabbody" id="tab-character"></div>
     <div class="tabbody" id="tab-shop"></div>
     <div class="tabbody" id="tab-gunsmith"></div>
     <div class="tabbody" id="tab-stash"></div>
 
     <div class="controls">
       <span class="kbd">WASD</span> move &nbsp; <span class="kbd">Mouse</span> aim &nbsp;
-      <span class="kbd">LMB</span> shoot &nbsp; <span class="kbd">Shift</span> sprint &nbsp;
+      <span class="kbd">LMB</span> shoot / melee (auto when close) &nbsp; <span class="kbd">Shift</span> sprint &nbsp;
       <span class="kbd">R</span> reload &nbsp; <span class="kbd">H</span> heal &nbsp;
       <span class="kbd">E</span> loot / extract &nbsp;
       <span class="kbd">G</span> grenade &nbsp;
@@ -318,6 +330,7 @@
       <div class="bar st"><i id="stFill" style="width:100%"></i><b>STAMINA</b></div>
       <div class="bar hg"><i id="hgFill" style="width:100%;background:linear-gradient(90deg,#c78a3a,#e0b46a)"></i><b>HUNGER</b></div>
       <div class="bar th"><i id="thFill" style="width:100%;background:linear-gradient(90deg,#3a86c7,#6ab0e0)"></i><b>THIRST</b></div>
+      <div style="font-size:.65rem;color:#9fb08f;margin-top:2px;">Armor <b id="hArmor" style="color:#cfe0b8">—</b> · Helmet <b id="hHelmet" style="color:#cfe0b8">—</b></div>
       <div style="font-size:.72rem;color:#9fb08f;margin-top:4px;">
         Meds:<b id="hMeds" style="color:#cfe0b8">0</b> · 
         Nade:<b id="hNade" style="color:#8fbf5a">0</b> · 
@@ -338,6 +351,59 @@
     </div>
   </div>
 </div>
+<div id="slotPickerOverlay"></div>
+<div id="pickupOverlay" style="position:fixed;inset:0;z-index:8;display:none;flex-direction:column;
+  background:rgba(6,10,6,.86);align-items:center;justify-content:center;padding:20px;">
+  <div class="bag-modal" style="max-width:500px;">
+    <div class="header">
+      <div>NEARBY ITEMS  ·  click to pick up</div>
+      <div class="actions"><button class="btn" id="pickupCloseBtnTop">Close (E)</button></div>
+    </div>
+    <div id="pickupList"></div>
+  </div>
+</div>
+<style>
+  #pickupOverlay.show{display:flex;}
+  /* ===== Character menu ===== */
+  .char-wrap{ display:grid; grid-template-columns: 1fr 260px 1fr; grid-template-rows: auto auto auto auto auto;
+    gap:10px; padding:14px 6px; align-items:stretch; }
+  .char-doll{ grid-column:2; grid-row:1/6; background:linear-gradient(180deg,#1a2015,#0e130b);
+    border:1px solid #2f3a25; border-radius:8px; position:relative; min-height:420px; padding:10px; }
+  .char-doll .silhouette{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:120px; height:280px; opacity:.28; }
+  .slot{ background:linear-gradient(180deg,#141a10,#0b0f08); border:1px solid #2f3a25; border-radius:6px;
+    padding:10px; cursor:pointer; transition:all .12s; display:flex; flex-direction:column; gap:4px;
+    min-height:74px; position:relative; }
+  .slot:hover{ border-color:#8fbf5a; background:linear-gradient(180deg,#1a2415,#0f1509); }
+  .slot .slot-label{ font-size:.62rem; letter-spacing:.14em; color:#7a8b6f; font-weight:700; }
+  .slot .slot-name{ font-size:.82rem; color:#cfe0b8; font-weight:600; line-height:1.2; }
+  .slot .slot-meta{ font-size:.66rem; color:#8a978a; }
+  .slot.empty .slot-name{ color:#5a6753; font-style:italic; font-weight:400; }
+  .slot .slot-color{ position:absolute; left:0; top:0; bottom:0; width:3px; background:#5f8a3a; border-radius:6px 0 0 6px; }
+  .slot.empty .slot-color{ background:#3a4530; }
+  .slot .unequip-x{ position:absolute; top:4px; right:6px; color:#8a978a; font-size:.9rem; cursor:pointer; padding:0 4px; }
+  .slot .unequip-x:hover{ color:#c74a3a; }
+  .pouch-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+  .pouch-slot{ flex:1 1 90px; min-width:80px; background:#0d120a; border:1px dashed #3a4530; border-radius:5px;
+    padding:8px 6px; text-align:center; cursor:pointer; font-size:.72rem; color:#7a8b6f; }
+  .pouch-slot.filled{ border-style:solid; border-color:#5f8a3a; background:#141a10; color:#cfe0b8; }
+  .pouch-slot:hover{ border-color:#8fbf5a; }
+  .char-section-title{ grid-column:1/4; margin-top:6px; font-size:.72rem; letter-spacing:.14em; color:#8a978a;
+    font-weight:700; border-bottom:1px solid #2a3620; padding-bottom:4px; }
+  /* Picker overlay */
+  #slotPickerOverlay{ position:fixed; inset:0; z-index:9; display:none; align-items:center; justify-content:center;
+    background:rgba(6,10,6,.86); padding:20px; }
+  #slotPickerOverlay.show{ display:flex; }
+  #slotPickerOverlay .picker-modal{ background:#141a10; border:1px solid #3a4530; border-radius:8px;
+    max-width:520px; width:100%; max-height:80vh; overflow-y:auto; padding:16px; }
+  .picker-item{ display:flex; justify-content:space-between; align-items:center; padding:10px 12px;
+    margin:4px 0; background:#0d120a; border-left:3px solid #5f8a3a; border-radius:4px; cursor:pointer; }
+  .picker-item:hover{ background:#1a2015; }
+  @media (max-width: 720px){
+    .char-wrap{ grid-template-columns: 1fr 1fr; }
+    .char-doll{ grid-column:1/3; grid-row:auto; min-height:220px; }
+  }
+</style>
 <div id="bagOverlay">
   <div class="bag-modal">
     <div class="header">
@@ -347,8 +413,17 @@
         <button class="btn" id="bagCloseBtn">Close (B)</button>
       </div>
     </div>
-    <div class="grid-wrap"><div id="bagGridView"></div></div>
-    <div class="hint">TAP AN ITEM TO DROP IT · GAME IS PAUSED</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:6px;background:#0e120a;border-radius:6px;">
+      <div>
+        <div style="text-align:center;font-size:.7rem;letter-spacing:.14em;color:#8fbf5a;margin-bottom:4px;font-weight:700;">BACKPACK</div>
+        <div id="bagGridView"></div>
+      </div>
+      <div id="rigGridSection" style="display:none;">
+        <div style="text-align:center;font-size:.7rem;letter-spacing:.14em;color:#c78a3a;margin-bottom:4px;font-weight:700;">RIG · <span id="rigCap"></span></div>
+        <div id="rigGridView"></div>
+      </div>
+    </div>
+    <div class="hint">TAP TO MOVE BETWEEN BAG &amp; RIG · LONG-PRESS TO DROP · GAME IS PAUSED</div>
   </div>
 </div>
 <div id="extractProg"><div style="font-size:.8rem;letter-spacing:.1em;color:#cfe0b8">EXTRACTING…</div><div class="pbar"><i id="extractFill"></i></div></div>
@@ -356,7 +431,7 @@
 <!-- MOBILE TOUCH CONTROLS -->
 <div id="touch">
   <div class="tc-stick left" id="tcMove"><div class="tc-thumb"></div></div>
-  <div class="tc-stick right" id="tcAim"><div class="tc-thumb"></div></div>
+  <button class="tc-fire" id="tcFire" aria-label="Fire">FIRE</button>
   <div class="tc-btns">
     <button class="tc-btn reload"   id="tcReload"   aria-label="Reload"><span class="k">R</span><span class="l">Reload</span></button>
     <button class="tc-btn heal"     id="tcHeal"     aria-label="Heal"><span class="k">H</span><span class="l">Heal</span></button>
@@ -387,6 +462,17 @@ const WEAPONS = {
 };
 const WEAPON_COST = {pistol:0, smg:12000, shotgun:16000, rifle:28000, sniper:44000};
 const AMMO_COST   = {"9mm":8, "12g":20, "545":16, "762":34}; // per round
+
+// ============================================================= MELEE
+const MELEE = {
+  detectRange: 60,       // pull out knife when nearest enemy is within this radius
+  reach: 46,             // slash reach from player centre
+  arc: Math.PI * 0.75,   // 135-degree arc in front
+  dmg: 45,
+  cooldown: 420,         // ms between swings
+  knockback: 9,          // pixels the enemy is shoved back
+};
+let meleeSwing = null;   // { x, y, angle, life, maxLife }
 const MED_COST = 3500, MED_HEAL = 60;
 
 // ============================================================= NEW ITEMS
@@ -438,16 +524,43 @@ const BACKPACKS = {
 };
 const BACKPACK_TIERS = ["sling","tactical","military","extraction"];
 
+// Rigs — Arena Breakout style tactical vests. Each has its own grid inventory
+// that deploys with you and comes back on extract. Great for Tetrising ammo,
+// meds and small loot for quick access. Slot = "rig" in ITEM_TYPES.
+const RIGS = {
+  rig_scav:   { name:"Scav Rig",      cols:3, rows:2, sell:600  },
+  rig_chest:  { name:"Chest Rig",     cols:4, rows:3, sell:2200 },
+  rig_tac:    { name:"Tactical Rig",  cols:5, rows:3, sell:5000 },
+  rig_heavy:  { name:"Heavy Rig",     cols:5, rows:4, sell:9500 },
+};
+
 // -------- Item catalogue (types with grid sizes + display colours) --------
 const ITEM_TYPES = {
-  medkit:     { w:1, h:1, color:"#c74a3a", name:"Medkit" },
-  grenade:    { w:1, h:1, color:"#3d5220", name:"Grenade" },
-  food_bar:   { w:1, h:1, color:"#c78a3a", name:"Energy Bar",   hunger:25 },
-  food_can:   { w:1, h:1, color:"#a8722a", name:"Canned Beans", hunger:40 },
-  food_mre:   { w:1, h:2, color:"#7d5518", name:"MRE Ration",   hunger:70 },
-  drink_can:  { w:1, h:1, color:"#3a86c7", name:"Soda Can",     thirst:30 },
-  drink_btl:  { w:1, h:1, color:"#3060a8", name:"Water Bottle", thirst:45 },
-  drink_spo:  { w:1, h:2, color:"#204688", name:"Sports Drink", thirst:70 },
+  medkit:      { w:1, h:1, color:"#c74a3a", name:"Medkit",       sell: 800 },
+  grenade:     { w:1, h:1, color:"#3d5220", name:"Grenade",      sell: 500 },
+  food_bar:    { w:1, h:1, color:"#c78a3a", name:"Energy Bar",   hunger:25, sell: 90 },
+  food_can:    { w:1, h:1, color:"#a8722a", name:"Canned Beans", hunger:40, sell: 140 },
+  food_mre:    { w:1, h:2, color:"#7d5518", name:"MRE Ration",   hunger:70, sell: 280 },
+  drink_can:   { w:1, h:1, color:"#3a86c7", name:"Soda Can",     thirst:30, sell: 60 },
+  drink_btl:   { w:1, h:1, color:"#3060a8", name:"Water Bottle", thirst:45, sell: 120 },
+  drink_spo:   { w:1, h:2, color:"#204688", name:"Sports Drink", thirst:70, sell: 220 },
+  // Armor (chest) — protect % is damage reduction, hp is durability
+  armor_light: { w:2, h:2, color:"#7a5c2a", name:"Light Armor",   protect: 20, maxHp: 80,  sell: 1500, slot:"armor" },
+  armor_med:   { w:2, h:2, color:"#4a5540", name:"Medium Armor",  protect: 32, maxHp: 160, sell: 4000, slot:"armor" },
+  armor_heavy: { w:2, h:3, color:"#2a3226", name:"Heavy Armor",   protect: 45, maxHp: 260, sell: 9500, slot:"armor" },
+  // Helmet — same behaviour, smaller footprint
+  helmet_l:    { w:1, h:1, color:"#7a5c2a", name:"Light Helmet",  protect: 15, maxHp: 50,  sell: 900,  slot:"helmet" },
+  helmet_h:    { w:1, h:2, color:"#2a3226", name:"Heavy Helmet",  protect: 28, maxHp: 120, sell: 3800, slot:"helmet" },
+  // Ammo boxes (a stack of rounds of a particular caliber)
+  ammo_9mm:    { w:1, h:1, color:"#c0a86a", name:"9mm Ammo",     ammoType:"9mm", sell: 200 },
+  ammo_12g:    { w:1, h:1, color:"#c46a5e", name:"12g Shells",   ammoType:"12g", sell: 300 },
+  ammo_545:    { w:1, h:1, color:"#8fbf5a", name:"5.45 Ammo",    ammoType:"545", sell: 360 },
+  ammo_762:    { w:1, h:1, color:"#c78a3a", name:"7.62 Ammo",    ammoType:"762", sell: 480 },
+  // Rigs — display in stash as items; equip in Character menu -> Rig slot
+  rig_scav:    { w:2, h:2, color:"#5a4a2a", name:"Scav Rig",     slot:"rig", cols:3, rows:2, sell: 600 },
+  rig_chest:   { w:2, h:2, color:"#4a5540", name:"Chest Rig",    slot:"rig", cols:4, rows:3, sell: 2200 },
+  rig_tac:     { w:2, h:3, color:"#3e4a30", name:"Tactical Rig", slot:"rig", cols:5, rows:3, sell: 5000 },
+  rig_heavy:   { w:3, h:3, color:"#2a3226", name:"Heavy Rig",    slot:"rig", cols:5, rows:4, sell: 9500 },
 };
 function miscGridSize(rarity){
   return ({ common:{w:1,h:1}, uncommon:{w:1,h:2}, rare:{w:2,h:2}, epic:{w:2,h:3} })[rarity] || {w:1,h:1};
@@ -463,6 +576,34 @@ function makeFoodItem(){
 function makeDrinkItem(){
   const kinds = ["drink_can","drink_btl","drink_spo"];
   return makeItem(kinds[Math.floor(Math.random()*kinds.length)]);
+}
+function sellPriceOf(it){
+  if(!it) return 0;
+  if(it.type === "misc") return it.value || 0;
+  const t = ITEM_TYPES[it.type];
+  return (t && t.sell) ? t.sell : 0;
+}
+function makeAmmoBox(){
+  const kinds = ["ammo_9mm","ammo_12g","ammo_545","ammo_762"];
+  const k = kinds[Math.floor(Math.random()*kinds.length)];
+  const it = makeItem(k);
+  it.rounds = Math.floor(rr(15, 40));
+  return it;
+}
+function makeArmor(){
+  const kinds = ["armor_light","armor_med","armor_heavy"];
+  const w = [70, 25, 5]; // weighted rarity
+  const roll = Math.random() * w.reduce((a,b)=>a+b);
+  let acc = 0, pick = 0;
+  for(let i=0;i<w.length;i++){ acc += w[i]; if(roll <= acc){ pick = i; break; } }
+  const it = makeItem(kinds[pick]);
+  it.hp = ITEM_TYPES[kinds[pick]].maxHp;
+  return it;
+}
+function makeHelmet(){
+  const it = makeItem(Math.random() < 0.7 ? "helmet_l" : "helmet_h");
+  it.hp = ITEM_TYPES[it.type].maxHp;
+  return it;
 }
 function makeMiscItemGrid(){
   const it = makeMiscItem();
@@ -643,6 +784,10 @@ function loadSave(){
   if(!save.ownedBags) save.ownedBags = { sling: true };
   if(!Array.isArray(save.loadoutBag)) save.loadoutBag = [];
   if(!Array.isArray(save.miscLootLog)) save.miscLootLog = save.miscLoot || [];
+  if(!save.equipped) save.equipped = {};
+  if(!Array.isArray(save.equipped.medsSlots)) save.equipped.medsSlots = [null,null,null];
+  if(!Array.isArray(save.equipped.rationsSlots)) save.equipped.rationsSlots = [null,null,null,null];
+  if(save.equipped.rigId === undefined) save.equipped.rigId = null;
   // Migrate old-format counters into the new stashItems array
   if(!Array.isArray(save.stashItems)){
     save.stashItems = [];
@@ -772,12 +917,59 @@ function startRaid(){
   const bp = BACKPACKS[bagId] || BACKPACKS.sling;
   const bag = { id: bagId, cols: bp.cols, rows: bp.rows, items: [] };
   save.loadoutBag = save.loadoutBag || [];
+  // Pull equipped rig out of stash and create the rig grid
+  save.equipped = save.equipped || {};
+  let rigGrid = null;
+  if(save.equipped.rigId){
+    const ri = save.stashItems.findIndex(x => x._id === save.equipped.rigId);
+    if(ri >= 0){
+      const rigItem = save.stashItems.splice(ri, 1)[0];
+      const meta = ITEM_TYPES[rigItem.type] || {};
+      rigGrid = { id: rigItem.type, name: meta.name || rigItem.name,
+                  cols: meta.cols || 4, rows: meta.rows || 3, items: [],
+                  _sourceItem: rigItem };
+    }
+  }
+
+  // Populate from equipped meds + rations pouches — try rig first (quick access), then backpack
+  const pouchIds = [
+    ...(save.equipped.medsSlots || []),
+    ...(save.equipped.rationsSlots || [])
+  ].filter(Boolean);
+  for(const pid of pouchIds){
+    const idx = save.stashItems.findIndex(x => x._id === pid);
+    if(idx >= 0){
+      const it = save.stashItems.splice(idx, 1)[0];
+      save.loadoutBag.push(it);
+    }
+  }
+  save.equipped.medsSlots = [null,null,null];
+  save.equipped.rationsSlots = [null,null,null,null];
+
   for(const it of save.loadoutBag){
     const copy = JSON.parse(JSON.stringify(it));
     delete copy.x; delete copy.y; delete copy.rotated;
-    bagTryPlace(bag, copy);
+    if(rigGrid && bagTryPlace(rigGrid, copy)) continue;
+    // fall back to backpack
+    const bpCopy = JSON.parse(JSON.stringify(it));
+    delete bpCopy.x; delete bpCopy.y; delete bpCopy.rotated;
+    bagTryPlace(bag, bpCopy);
   }
   save.loadoutBag = []; // consumed on deploy
+
+  // stash the rig grid for use once player exists
+  window._pendingRig = rigGrid;
+
+  // Pull equipped armor + helmet out of stash into player slots (if any)
+  const equipped = save.equipped || {};
+  const pullFromStash = (id) => {
+    if(!id) return null;
+    const idx = save.stashItems.findIndex(x => x._id === id);
+    if(idx >= 0){ const it = save.stashItems.splice(idx, 1)[0]; return it; }
+    return null;
+  };
+  const wornArmor  = pullFromStash(equipped.armorId);
+  const wornHelmet = pullFromStash(equipped.helmetId);
 
   player = {
     x:WORLD.w/2, y:WORLD.h/2, r:14, angle:0, hp:100, maxhp:100,
@@ -785,8 +977,11 @@ function startRaid(){
     reloading:false, healing:0, lastShot:0, recoilHeat:0,
     ammoType:type,
     hunger:100, maxhunger:100, thirst:100, maxthirst:100,
-    backpack: bag
+    backpack: bag,
+    armor: wornArmor, helmet: wornHelmet,
+    rig: window._pendingRig || null
   };
+  window._pendingRig = null;
   enemies=[]; bullets=[]; ebullets=[]; particles=[]; grenades=[]; groundItems=[];
   crates=[]; walls=[]; extracts=[];
   raidTime=1800; lastSpawn=0; extractProgress=0; extractZone=null; screenShake=0;
@@ -880,8 +1075,8 @@ canvas.addEventListener("contextmenu",e=>e.preventDefault());
 
 // ============================================================= TOUCH INPUT
 const touch = {
-  move: {active:false, x:0, y:0},
-  aim:  {active:false, angle:0, dist:0, fire:false}
+  move: {active:false, x:0, y:0, angle:0, dist:0},
+  fire: false
 };
 function isTouchDevice(){
   return ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
@@ -955,7 +1150,10 @@ function initTouchControls(){
   if(!isTouchDevice()) return;
   document.getElementById("touch").classList.add("show");
   setupJoystick("tcMove", touch.move);
-  setupJoystick("tcAim",  touch.aim, {autofire:true});
+  bindTouchButton("tcFire",
+    () => { touch.fire = true; },
+    () => { touch.fire = false; }
+  );
   bindTouchButton("tcReload",   () => { if(state==="raid") startReload(); });
   bindTouchButton("tcHeal",     () => { if(state==="raid") startHeal(); });
   bindTouchButton("tcInteract", () => { if(state==="raid") interact(); });
@@ -998,7 +1196,13 @@ function startHeal(){
 }
 function interact(){
   const p=player;
-  // loot crate
+  // Ground items first — if any within pickup range, open pickup UI
+  const near = groundItems.filter(g => dist2(p.x, p.y, g.x, g.y) < 44*44);
+  if(near.length > 0){
+    openPickupUI(near);
+    return;
+  }
+  // Otherwise loot crate
   for(const c of crates){
     if(!c.open && dist2(p.x,p.y,c.x,c.y)<44*44){
       openCrate(c); return;
@@ -1084,12 +1288,113 @@ function closeBag(){
   paused = false;
   document.getElementById("bagOverlay").classList.remove("show");
 }
-function dropItem(item){
-  bagRemove(player.backpack, item);
+function dropItem(item, sourceBag){
+  const bag = sourceBag || player.backpack;
+  bagRemove(bag, item);
+  // Ground drop — always in view, just in front of the player
+  const dropped = {...item}; delete dropped.x; delete dropped.y; delete dropped.rotated;
+  dropped._gid = Math.random().toString(36).slice(2, 10);
+  const dx = player.x + Math.cos(player.angle) * 22 + rr(-6, 6);
+  const dy = player.y + Math.sin(player.angle) * 22 + rr(-6, 6);
+  groundItems.push({ x: dx, y: dy, item: dropped });
+  // Puff of dust + colour chips
+  for(let i = 0; i < 8; i++){
+    particles.push({x: dx, y: dy, vx: rr(-1.4,1.4), vy: rr(-2, -0.3), life: 18, col: "#a8b09a"});
+  }
+  for(let i = 0; i < 4; i++){
+    particles.push({x: dx, y: dy, vx: rr(-1,1), vy: rr(-1.5, 0), life: 22, col: dropped.color || "#5f8a3a"});
+  }
   toast("Dropped: " + (item.name || item.type));
   renderBagOverlay();
   updateHUD();
 }
+function openPickupUI(items){
+  if(state !== "raid") return;
+  paused = true;
+  document.getElementById("bagOverlay").classList.remove("show");
+  renderPickupOverlay(items);
+  document.getElementById("pickupOverlay").classList.add("show");
+}
+function closePickup(){
+  paused = false;
+  document.getElementById("pickupOverlay").classList.remove("show");
+}
+function renderPickupOverlay(near){
+  const list = document.getElementById("pickupList");
+  if(near.length === 0){
+    list.innerHTML = '<div style="color:#8a978a;padding:14px;text-align:center;">Nothing nearby.</div>';
+    return;
+  }
+  // Sort by distance
+  near.sort((a,b) => dist2(player.x,player.y,a.x,a.y) - dist2(player.x,player.y,b.x,b.y));
+  let h = '';
+  near.forEach((g, i) => {
+    const it = g.item;
+    const label = it.name || it.type;
+    const size = it.w + "×" + it.h;
+    const extra = it.rounds ? ` (${it.rounds} rounds)` : (it.value ? ` · ₽${fmt(it.value)}` : '');
+    const rar = it.rarity ? `<span class="pill" style="background:${(RARITIES[it.rarity]||{}).color||'#9CA3AF'}22;color:${(RARITIES[it.rarity]||{}).color||'#9CA3AF'};">${it.rarity}</span>` : '';
+    h += `<div class="pickup-row" data-gid="${it._gid}" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin:3px 0;background:${it.color||'#22301a'}22;border-left:3px solid ${it.color||'#5f8a3a'};border-radius:4px;cursor:pointer;">
+      <div>
+        <div style="color:#cfe0b8;font-size:.86rem;">${label}${extra}</div>
+        <div style="font-size:.7rem;color:#8a978a;">${size} ${rar}</div>
+      </div>
+      <div style="font-size:1rem;color:#8fbf5a;font-weight:700;">+</div>
+    </div>`;
+  });
+  h += '<div style="margin-top:10px;text-align:center;"><button class="btn" id="pickupAllBtn">Take all</button> <button class="btn" id="pickupCloseBtn">Close</button></div>';
+  list.innerHTML = h;
+  document.querySelectorAll(".pickup-row").forEach(el => {
+    el.addEventListener("click", () => {
+      const gid = el.dataset.gid;
+      const gi = groundItems.findIndex(g => g.item._gid === gid);
+      if(gi < 0) return;
+      const g = groundItems[gi];
+      // Ammo boxes: add directly to reserve (don't take bag slot)
+      if(g.item.type && g.item.type.startsWith("ammo_") && g.item.ammoType === player.ammoType){
+        player.reserve += g.item.rounds || 0;
+        groundItems.splice(gi, 1);
+        toast("+" + (g.item.rounds||0) + " " + player.ammoType);
+        renderPickupOverlay(groundItems.filter(x => dist2(player.x,player.y,x.x,x.y) < 44*44));
+        updateHUD();
+        return;
+      }
+      // Other ammo caliber — try to fit in bag as an item
+      const it = JSON.parse(JSON.stringify(g.item));
+      if(bagTryPlace(player.backpack, it)){
+        groundItems.splice(gi, 1);
+        toast("+ " + (it.name||it.type));
+        renderPickupOverlay(groundItems.filter(x => dist2(player.x,player.y,x.x,x.y) < 44*44));
+        updateHUD();
+      } else {
+        toast("Bag full");
+      }
+    });
+  });
+  document.getElementById("pickupCloseBtn").addEventListener("click", closePickup);
+  document.getElementById("pickupAllBtn").addEventListener("click", () => {
+    for(let i = near.length - 1; i >= 0; i--){
+      const g = near[i];
+      const gi = groundItems.indexOf(g);
+      if(gi < 0) continue;
+      if(g.item.type && g.item.type.startsWith("ammo_") && g.item.ammoType === player.ammoType){
+        player.reserve += g.item.rounds || 0;
+        groundItems.splice(gi, 1);
+        continue;
+      }
+      const it = JSON.parse(JSON.stringify(g.item));
+      if(bagTryPlace(player.backpack, it)){
+        groundItems.splice(gi, 1);
+      }
+    }
+    updateHUD();
+    // Refresh with what's still around
+    const still = groundItems.filter(x => dist2(player.x,player.y,x.x,x.y) < 44*44);
+    if(still.length === 0) closePickup();
+    else renderPickupOverlay(still);
+  });
+}
+
 function sortBag(){
   const items = player.backpack.items.slice();
   player.backpack.items = [];
@@ -1102,11 +1407,8 @@ function sortBag(){
   renderBagOverlay();
   toast("Sorted (" + placed + " items)");
 }
-function renderBagOverlay(){
-  const bag = player.backpack;
-  const cellPx = 44;
-  document.getElementById("bagCap").textContent =
-    bag.cols + "×" + bag.rows + " · " + bagUsed() + "/" + bagCapacity() + " cells";
+function renderGridInto(container, bag, containerName, dataAttr){
+  const cellPx = 40;
   let h = `<div style="display:grid;grid-template-columns:repeat(${bag.cols},${cellPx}px);grid-template-rows:repeat(${bag.rows},${cellPx}px);gap:2px;">`;
   for(let y=0; y<bag.rows; y++){
     for(let x=0; x<bag.cols; x++){
@@ -1115,18 +1417,79 @@ function renderBagOverlay(){
   }
   bag.items.forEach((it, idx) => {
     const label = (it.name || it.type).slice(0, 14);
-    const val = it.value ? "₽"+fmt(it.value) : "";
-    h += `<div class="bag-item-tile" data-idx="${idx}" title="Tap to drop: ${it.name||it.type}" style="grid-column:${it.x+1}/span ${it.w};grid-row:${it.y+1}/span ${it.h};background:${it.color||'#5f8a3a'};font-size:${it.w>=2?'.7rem':'.55rem'};">${label}${val?"<br/>"+val:""}</div>`;
+    const val = it.value ? "₽"+fmt(it.value) : (it.rounds ? it.rounds+"r" : "");
+    h += `<div class="bag-item-tile" ${dataAttr}="${idx}" title="Tap to move, long-press to drop" style="grid-column:${it.x+1}/span ${it.w};grid-row:${it.y+1}/span ${it.h};background:${it.color||'#5f8a3a'};font-size:${it.w>=2?'.7rem':'.55rem'};">${label}${val?"<br/>"+val:""}</div>`;
   });
   h += `</div>`;
-  document.getElementById("bagGridView").innerHTML = h;
-  document.querySelectorAll(".bag-item-tile").forEach(el => {
-    el.addEventListener("click", () => {
-      const idx = +el.dataset.idx;
-      const item = bag.items[idx];
-      if(item) dropItem(item);
-    });
+  container.innerHTML = h;
+}
+
+function wireGridInteractions(container, bag, otherBag){
+  container.querySelectorAll(".bag-item-tile").forEach(el => {
+    const idxAttr = el.dataset.bagidx !== undefined ? "bagidx" : "rigidx";
+    const idx = +el.dataset[idxAttr];
+    const item = bag.items[idx];
+    if(!item) return;
+    let pressTimer = null;
+    let longPressed = false;
+    const startPress = (e) => {
+      longPressed = false;
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        dropItem(item, bag);
+      }, 450);
+    };
+    const cancelPress = () => { if(pressTimer){ clearTimeout(pressTimer); pressTimer = null; } };
+    const tap = () => {
+      cancelPress();
+      if(longPressed) return;
+      // Move to other container if it exists + has space
+      if(otherBag){
+        const copy = JSON.parse(JSON.stringify(item));
+        delete copy.x; delete copy.y; delete copy.rotated;
+        if(bagTryPlace(otherBag, copy)){
+          bagRemove(bag, item);
+          renderBagOverlay();
+          updateHUD();
+          return;
+        } else {
+          toast("Other container full");
+          return;
+        }
+      }
+      // No other container -> just drop
+      dropItem(item, bag);
+    };
+    el.addEventListener("mousedown", startPress);
+    el.addEventListener("touchstart", startPress, {passive:true});
+    el.addEventListener("mouseleave", cancelPress);
+    el.addEventListener("touchmove", cancelPress);
+    el.addEventListener("touchcancel", cancelPress);
+    el.addEventListener("click", tap);
+    el.addEventListener("touchend", (e) => { cancelPress(); if(!longPressed) tap(); });
   });
+}
+
+function renderBagOverlay(){
+  const bag = player.backpack;
+  document.getElementById("bagCap").textContent =
+    bag.cols + "×" + bag.rows + " · " + bagUsed() + "/" + bagCapacity() + " cells";
+  renderGridInto(document.getElementById("bagGridView"), bag, "bag", "data-bagidx");
+
+  const rigSection = document.getElementById("rigGridSection");
+  if(player.rig){
+    const r = player.rig;
+    let used = 0; for(const it of r.items) used += it.w*it.h;
+    document.getElementById("rigCap").textContent =
+      r.cols + "×" + r.rows + " · " + used + "/" + (r.cols*r.rows);
+    renderGridInto(document.getElementById("rigGridView"), r, "rig", "data-rigidx");
+    rigSection.style.display = "block";
+    wireGridInteractions(document.getElementById("bagGridView"), bag, r);
+    wireGridInteractions(document.getElementById("rigGridView"), r, bag);
+  } else {
+    rigSection.style.display = "none";
+    wireGridInteractions(document.getElementById("bagGridView"), bag, null);
+  }
 }
 
 // ============================================================= DAMAGE NUMBERS
@@ -1135,9 +1498,67 @@ function addDamageNumber(x, y, amount, color){
 }
 
 // ============================================================= COMBAT
+function nearestEnemyDist(){
+  const p = player;
+  let best = Infinity;
+  for(const e of enemies){
+    if(e.hp <= 0) continue;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const d = Math.hypot(dx, dy) - e.r;
+    if(d < best) best = d;
+  }
+  return best;
+}
+
+function meleeAttack(){
+  const p = player;
+  if(p.reloading || p.healing > 0) return;
+  const now = performance.now();
+  if(now - (p.lastMelee || 0) < MELEE.cooldown) return;
+  p.lastMelee = now;
+
+  // Hit every enemy within arc + reach
+  const arcHalf = MELEE.arc / 2;
+  let hits = 0;
+  for(const e of enemies){
+    if(e.hp <= 0) continue;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const d  = Math.hypot(dx, dy);
+    if(d > MELEE.reach + e.r) continue;
+    // Angle diff between player facing and enemy direction
+    let diff = Math.atan2(dy, dx) - p.angle;
+    while(diff >  Math.PI) diff -= Math.PI * 2;
+    while(diff < -Math.PI) diff += Math.PI * 2;
+    if(Math.abs(diff) > arcHalf) continue;
+    // Damage
+    e.hp -= MELEE.dmg;
+    e.alert = now;
+    addDamageNumber(e.x + rr(-6,6), e.y - e.r - 4, MELEE.dmg, e.hp<=0 ? "#ff6060" : "#ffe680");
+    // Knockback
+    if(d > 0.01){
+      const kbx = (dx/d) * MELEE.knockback;
+      const kby = (dy/d) * MELEE.knockback;
+      e.x += kbx; e.y += kby; resolveWalls(e);
+    }
+    // Small blood particles
+    for(let i=0;i<4;i++) particles.push({x:e.x,y:e.y,vx:rr(-2,2),vy:rr(-2,2),life:14,col:"#8a2f1f"});
+    hits++;
+    if(e.hp <= 0) killEnemy(e);
+  }
+  // Spawn slash animation
+  meleeSwing = { x: p.x, y: p.y, angle: p.angle, life: 12, maxLife: 12 };
+  screenShake = Math.min(6, screenShake + (hits > 0 ? 3 : 1));
+  if(hits === 0) toast("swing — miss");
+}
+
 function fire(){
   const p=player, now=performance.now();
   if(p.reloading || p.healing>0) return;
+  // Auto-melee: if any enemy is within melee detection radius, swing knife instead
+  if(nearestEnemyDist() <= MELEE.detectRange){
+    meleeAttack();
+    return;
+  }
   if(now-p.lastShot < p.weapon.rof) return;
   if(p.mag<=0){ if(p.reserve>0) startReload(); else toast("Click — empty!"); p.lastShot=now; return; }
   p.lastShot=now; p.mag--;
@@ -1203,16 +1624,18 @@ function update(dt, t){
   else p.stamina=Math.min(100,p.stamina+0.5*dt);
   p.recoilHeat=(p.recoilHeat||0)*Math.pow(0.9,dt);   // recoil recovers when not firing
 
-  // aim — touch joystick sets angle directly, otherwise use mouse world coord
-  if(touch.aim.active){
-    p.angle = touch.aim.angle;
-  } else {
+  // aim — on mobile the movement joystick also sets facing.
+  //         If the stick is at rest, keep the last angle (don't snap).
+  //         Desktop mouse still overrides.
+  if(touch.move.active && touch.move.dist > 0.2){
+    p.angle = touch.move.angle;
+  } else if(!isTouchDevice()){
     p.angle=Math.atan2((mouse.y+cam.y)-p.y,(mouse.x+cam.x)-p.x);
   }
   // healing
   if(p.healing>0){ p.healing-=dt*16.6667; if(p.healing<=0){ p.hp=Math.min(p.maxhp,p.hp+MED_HEAL); toast("Healed +"+MED_HEAL); } }
-  // shooting — mouse OR touch right-stick pushed past threshold triggers fire
-  const firing = mouse.down || (touch.aim.active && touch.aim.fire);
+  // shooting — mouse OR FIRE button triggers fire
+  const firing = mouse.down || touch.fire;
   if(firing){ if(p.weapon.auto) fire(); else if(!p._heldTrigger) fire(); p._heldTrigger=true; }
   else p._heldTrigger=false;
 
@@ -1295,6 +1718,9 @@ function update(dt, t){
   for(const dn of damageNumbers){ dn.y += dn.vy; dn.vy *= 0.94; dn.life--; }
   damageNumbers = damageNumbers.filter(dn => dn.life > 0);
 
+  // melee slash animation lifetime
+  if(meleeSwing){ meleeSwing.life--; if(meleeSwing.life <= 0) meleeSwing = null; }
+
   // grenades update (arc → land → tick → explode)
   for(const g of grenades){
     if(g.t < g.dur){ g.t += dt; g.x = g.x0 + (g.tx-g.x0)*(g.t/g.dur); g.y = g.y0 + (g.ty-g.y0)*(g.t/g.dur); }
@@ -1344,10 +1770,60 @@ function update(dt, t){
   updateHUD();
 }
 
-function hurt(d){ const p=player; if(p.hp<=0) return; p.hp-=d; screenShake=Math.min(9,screenShake+2);
+function hurt(d){
+  const p=player; if(p.hp<=0) return;
+  // Helmet absorbs ~30% of the damage class (head shots proxy)
+  if(p.helmet && p.helmet.hp > 0){
+    const head = d * 0.3;
+    const absorbed = head * (p.helmet.protect/100);
+    p.helmet.hp -= absorbed;
+    d -= absorbed;
+    if(p.helmet.hp <= 0){ toast(p.helmet.name + " broke!"); p.helmet = null; }
+  }
+  // Body armor absorbs the rest
+  if(p.armor && p.armor.hp > 0){
+    const body = d;
+    const absorbed = body * (p.armor.protect/100);
+    p.armor.hp -= absorbed;
+    d -= absorbed;
+    if(p.armor.hp <= 0){ toast(p.armor.name + " broke!"); p.armor = null; }
+  }
+  p.hp -= d; screenShake = Math.min(9, screenShake+2);
   for(let i=0;i<4;i++) particles.push({x:p.x,y:p.y,vx:rr(-2,2),vy:rr(-2,2),life:12,col:"#c74a3a"});
 }
-function killEnemy(e){ raidBag.killed++; for(let i=0;i<10;i++) particles.push({x:e.x,y:e.y,vx:rr(-3,3),vy:rr(-3,3),life:22,col:"#8a2f1f"}); toast(e.type+" down"); }
+function killEnemy(e){
+  raidBag.killed++;
+  for(let i=0;i<10;i++) particles.push({x:e.x,y:e.y,vx:rr(-3,3),vy:rr(-3,3),life:22,col:"#8a2f1f"});
+  // Loot drop chances vary by enemy type
+  const rolls = e.type === "spitter" ? 2 : (e.type === "zombie" ? 1 : 0.5);
+  for(let i=0; i<Math.ceil(rolls); i++){
+    const r = Math.random();
+    if(r < 0.55){
+      // Loose ammo (small stack matching player's current caliber)
+      const ammoItem = makeItem("ammo_" + (player.ammoType || "9mm"));
+      ammoItem.rounds = Math.floor(rr(6, 16));
+      dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), ammoItem);
+    } else if(r < 0.75){
+      dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeItem("medkit"));
+    } else if(r < 0.85){
+      dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeItem("grenade"));
+    } else if(r < 0.92){
+      // Rare armor drop (spitters especially)
+      if(e.type === "spitter" || Math.random() < 0.3) dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeArmor());
+      else dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeHelmet());
+    } else {
+      dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeMiscItemGrid());
+    }
+  }
+  toast(e.type+" down");
+}
+
+function dropOnGround(x, y, item){
+  const clean = JSON.parse(JSON.stringify(item));
+  delete clean.x; delete clean.y; delete clean.rotated;
+  clean._gid = Math.random().toString(36).slice(2, 10);
+  groundItems.push({ x, y, item: clean });
+}
 
 function endRaid(success, reason){
   state="ended";
@@ -1388,12 +1864,38 @@ function endRaid(success, reason){
     save.money += miscVal;
     lootLines.push("Cash secured: ₽"+(raidBag.money+miscVal));
     if(miscCount) lootLines.push("Misc loot sold: "+miscCount+" items (₽"+miscVal+")");
+    // Preserve equipped armor + helmet by returning them to stash
+    if(p.armor){
+      const a = {...p.armor}; if(!a._id) a._id = "eq_"+Math.random().toString(36).slice(2,10);
+      save.stashItems.push(a);
+      save.equipped = save.equipped || {}; save.equipped.armorId = a._id;
+    } else { if(save.equipped) delete save.equipped.armorId; }
+    // Preserve rig + its contents
+    if(p.rig){
+      const rigItem = p.rig._sourceItem || { type: p.rig.id, name: p.rig.name };
+      if(!rigItem._id) rigItem._id = "eq_"+Math.random().toString(36).slice(2,10);
+      save.stashItems.push(rigItem);
+      save.equipped.rigId = rigItem._id;
+      // Push each item from the rig back to stash
+      for(const it of (p.rig.items||[])){
+        const clean = {...it}; delete clean.x; delete clean.y; delete clean.rotated;
+        clean._id = "s_" + Math.random().toString(36).slice(2,10);
+        save.stashItems.push(clean);
+        lootLines.push("Rig: " + (it.name||it.type));
+      }
+    } else { if(save.equipped) delete save.equipped.rigId; }
+    if(p.helmet){
+      const h2 = {...p.helmet}; if(!h2._id) h2._id = "eq_"+Math.random().toString(36).slice(2,10);
+      save.stashItems.push(h2);
+      save.equipped = save.equipped || {}; save.equipped.helmetId = h2._id;
+    } else { if(save.equipped) delete save.equipped.helmetId; }
     lootLines.push("Ammo returned: "+(p.mag+p.reserve)+" "+t);
     lootLines.push("Medkits: "+keptCounts.medkit+"  ·  Grenades: "+keptCounts.grenade+"  ·  Food: "+keptCounts.food+"  ·  Water: "+keptCounts.drink);
     lootLines.push("Kills: "+raidBag.killed);
   } else {
-    // lose everything brought + looted (ammo/meds already deducted at deploy)
-    lootLines.push("LOST all ammo and medkits taken into the raid");
+    // Death: lose everything you brought — including armor, helmet, rig, all bag items, ammo brought
+    if(save.equipped){ delete save.equipped.armorId; delete save.equipped.helmetId; delete save.equipped.rigId; }
+    lootLines.push("LOST all ammo, medkits, equipped armor, helmet, and rig");
     lootLines.push("Looted cash forfeited: ₽"+raidBag.money);
     lootLines.push("Kills: "+raidBag.killed);
   }
@@ -1653,9 +2155,34 @@ function render(){
   const p=player;
   ctx.fillStyle="#cfe0b8"; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill();
   ctx.strokeStyle="#5a6b45"; ctx.lineWidth=3; ctx.stroke();
-  // gun barrel
-  ctx.strokeStyle="#20261c"; ctx.lineWidth=5; ctx.beginPath();
-  ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+Math.cos(p.angle)*22,p.y+Math.sin(p.angle)*22); ctx.stroke();
+  // Weapon: knife if enemy is in melee range, otherwise gun barrel
+  const inMelee = nearestEnemyDist() <= MELEE.detectRange;
+  if(inMelee){
+    // Knife: hilt line + triangular blade
+    ctx.strokeStyle = "#4a3018"; ctx.lineWidth = 3; ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(p.x + Math.cos(p.angle)*14, p.y + Math.sin(p.angle)*14);
+    ctx.stroke();
+    ctx.save();
+    ctx.translate(p.x + Math.cos(p.angle)*14, p.y + Math.sin(p.angle)*14);
+    ctx.rotate(p.angle);
+    ctx.fillStyle = "#dcdcdc";
+    ctx.beginPath();
+    ctx.moveTo(0, -3); ctx.lineTo(14, 0); ctx.lineTo(0, 3); ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#909090"; ctx.lineWidth = 1; ctx.stroke();
+    // Blade highlight
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(1, -1.5); ctx.lineTo(11, -0.3); ctx.stroke();
+    ctx.restore();
+    // Red ring around player to signal melee mode
+    ctx.strokeStyle = "rgba(255,200,120,0.5)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r+4, 0, 7); ctx.stroke();
+  } else {
+    // Gun barrel (unchanged)
+    ctx.strokeStyle="#20261c"; ctx.lineWidth=5; ctx.beginPath();
+    ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+Math.cos(p.angle)*22,p.y+Math.sin(p.angle)*22); ctx.stroke();
+  }
   if(p.healing>0){ ctx.strokeStyle="#6ab0e0"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(p.x,p.y,p.r+6,0,7*(1-p.healing/1600)); ctx.stroke(); }
 
   // grenades in flight
@@ -1680,12 +2207,91 @@ function render(){
     }
   }
 
-  // ground items (food, water, misc from crates that spill out)
-  for(const it of groundItems){
-    ctx.fillStyle = it.color;
-    ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1;
-    ctx.fillRect(it.x-6, it.y-6, 12, 12);
-    ctx.strokeRect(it.x-6, it.y-6, 12, 12);
+  // ground items — big, obvious sprites with a name label when in pickup range
+  for(const g of groundItems){
+    const inRange = dist2(player.x, player.y, g.x, g.y) < 44*44;
+    const it = g.item;
+    ctx.save();
+    // Shadow
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.beginPath(); ctx.ellipse(g.x, g.y+11, 13, 4, 0, 0, 7); ctx.fill();
+    // Highlight ring if in pickup range
+    if(inRange){
+      const t = (performance.now() % 800) / 800;
+      ctx.strokeStyle = `rgba(255,240,150,${0.55 + 0.35*Math.sin(t*Math.PI*2)})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(g.x, g.y, 20, 0, 7); ctx.stroke();
+    }
+    // Item tile — actual w×h at bigger cell size
+    const CELL = 11;
+    const w = Math.max(CELL, (it.w||1) * CELL);
+    const h = Math.max(CELL, (it.h||1) * CELL);
+    ctx.fillStyle = it.color || "#5f8a3a";
+    ctx.fillRect(g.x - w/2, g.y - h/2, w, h);
+    ctx.strokeStyle = "rgba(0,0,0,0.65)"; ctx.lineWidth = 1.5;
+    ctx.strokeRect(g.x - w/2, g.y - h/2, w, h);
+    // Inner highlight for depth
+    ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 1;
+    ctx.strokeRect(g.x - w/2 + 1.5, g.y - h/2 + 1.5, w - 3, h - 3);
+    // Ammo count badge
+    if(it.rounds){
+      ctx.fillStyle = "rgba(0,0,0,0.7)";
+      ctx.fillRect(g.x - 12, g.y + h/2 - 2, 24, 12);
+      ctx.fillStyle = "#ffe680";
+      ctx.font = "bold 10px monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(it.rounds, g.x, g.y + h/2 + 4);
+    }
+    // Name label in pickup range
+    if(inRange){
+      const label = it.name || it.type || "item";
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = "rgba(0,0,0,0.78)";
+      ctx.fillRect(g.x - tw/2 - 6, g.y - h/2 - 19, tw + 12, 15);
+      ctx.fillStyle = "#cfe0b8";
+      ctx.fillText(label, g.x, g.y - h/2 - 11);
+    }
+    ctx.restore();
+  }
+
+  // melee slash arc (world space)
+  if(meleeSwing){
+    const s = meleeSwing;
+    const t = 1 - s.life / s.maxLife;
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.angle);
+    // Sweeping arc (motion trail)
+    ctx.globalAlpha = 1 - t;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(0, 0, MELEE.reach * (0.55 + t*0.45), -MELEE.arc/2, MELEE.arc/2);
+    ctx.stroke();
+    // Inner cyan glow
+    ctx.strokeStyle = "#a8e0ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, MELEE.reach * (0.55 + t*0.45), -MELEE.arc/2, MELEE.arc/2);
+    ctx.stroke();
+    // Three radial slash lines
+    ctx.strokeStyle = "#fff8d0";
+    ctx.lineWidth = 2;
+    for(let i=0; i<3; i++){
+      const a = -MELEE.arc/2 + (i/2) * MELEE.arc;
+      const inner = MELEE.reach * 0.2 * (1-t);
+      const outer = MELEE.reach * (0.55 + t*0.45);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*inner, Math.sin(a)*inner);
+      ctx.lineTo(Math.cos(a)*outer, Math.sin(a)*outer);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   // damage numbers (world space)
@@ -1741,6 +2347,9 @@ function drawMinimap(){
 // ============================================================= HUD
 function updateHUD(){
   const p=player;
+  // Backfill maxHp if missing
+  if(p.armor && !p.armor.maxHp) p.armor.maxHp = ITEM_TYPES[p.armor.type]?.maxHp || p.armor.hp;
+  if(p.helmet && !p.helmet.maxHp) p.helmet.maxHp = ITEM_TYPES[p.helmet.type]?.maxHp || p.helmet.hp;
   document.getElementById("hpFill").style.width=clamp(p.hp,0,100)+"%";
   document.getElementById("stFill").style.width=p.stamina+"%";
   document.getElementById("hgFill").style.width=clamp(p.hunger,0,100)+"%";
@@ -1753,6 +2362,10 @@ function updateHUD(){
   let miscVal = 0;
   for(const it of bag.items) if(it.type === "misc" && it.value) miscVal += it.value;
   document.getElementById("hLoot").textContent="₽"+(raidBag.money + miscVal);
+  const armEl = document.getElementById("hArmor");
+  const helEl = document.getElementById("hHelmet");
+  armEl.textContent = p.armor ? Math.max(0, Math.round(p.armor.hp)) + "/" + p.armor.maxHp : "—";
+  helEl.textContent = p.helmet ? Math.max(0, Math.round(p.helmet.hp)) + "/" + p.helmet.maxHp : "—";
   document.getElementById("hBag").textContent = bagUsed()+"/"+bagCapacity();
   document.getElementById("hBag").style.color = bagFree()<=0 ? "#c74a3a" : bagFree()<=2 ? "#c7a24a" : "#cfe0b8";
   document.getElementById("hWpn").textContent=p.weapon.name+(p.reloading?" (reloading)":"");
@@ -1795,6 +2408,7 @@ document.querySelectorAll(".tab").forEach(tab=>{
 });
 function renderTab(which){
   if(which==="deploy") renderDeploy();
+  else if(which==="character") renderCharacter();
   else if(which==="shop") renderShop();
   else if(which==="gunsmith") renderGunsmith();
   else if(which==="stash") renderStash();
@@ -1999,6 +2613,18 @@ function renderShop(){
       <button class="btn" data-buyfood="1">Buy ₽${fmt(600)}</button></div>`;
   h+=`<div class="row"><div><div class="nm">Water Pack (drink)</div><div class="sub">Have: ${stashCount(it=>it.type&&it.type.startsWith("drink_"))}</div></div>
       <button class="btn" data-buywater="1">Buy ₽${fmt(400)}</button></div>`;
+  h+='<div style="color:#8a978a;font-size:.8rem;margin:14px 0 10px;">ARMOR &amp; HELMETS</div>';
+  ["armor_light","armor_med","armor_heavy","helmet_l","helmet_h"].forEach(id => {
+    const t = ITEM_TYPES[id];
+    h += `<div class="row"><div><div class="nm">${t.name}</div><div class="sub">${t.w}×${t.h} · ${t.protect}% reduction · ${t.maxHp} HP</div></div>
+      <button class="btn" data-buyeq="${id}">Buy ₽${fmt(Math.floor(t.sell*1.6))}</button></div>`;
+  });
+  h += '<div style="color:#8a978a;font-size:.8rem;margin:14px 0 10px;">RIGS (tactical vests · quick-access grid)</div>';
+  ["rig_scav","rig_chest","rig_tac","rig_heavy"].forEach(id => {
+    const t = ITEM_TYPES[id];
+    h += `<div class="row"><div><div class="nm">${t.name}</div><div class="sub">${t.w}×${t.h} in bag · ${t.cols}×${t.rows} rig grid (${t.cols*t.rows} slots)</div></div>
+      <button class="btn" data-buyeq="${id}">Buy ₽${fmt(Math.floor(t.sell*1.6))}</button></div>`;
+  });
   box.innerHTML=h;
   box.querySelectorAll("[data-buyw]").forEach(b=>b.addEventListener("click",()=>{
     const wid=b.dataset.buyw, cost=WEAPON_COST[wid];
@@ -2042,6 +2668,16 @@ function renderShop(){
     save.money-=400; save.stashItems.push(makeDrinkItem());
     persist(); refreshTop(); renderShop();
   });
+  box.querySelectorAll("[data-buyeq]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.buyeq;
+    const t = ITEM_TYPES[id];
+    const cost = Math.floor(t.sell * 1.6);
+    if(save.money < cost){ toast("Not enough ₽"); return; }
+    save.money -= cost;
+    const it = makeItem(id); it.hp = t.maxHp;
+    save.stashItems.push(it);
+    persist(); refreshTop(); renderShop();
+  }));
 }
 
 function renderGunsmith(){
@@ -2401,6 +3037,259 @@ function drawGun(cnv,wid){
   g.fillText(WEAPONS[wid].name, 10, 16);
 }
 
+function renderCharacter(){
+  const box = document.getElementById("tab-character");
+  save.equipped = save.equipped || {};
+  save.equipped.medsSlots = save.equipped.medsSlots || [null,null,null];
+  save.equipped.rationsSlots = save.equipped.rationsSlots || [null,null,null,null];
+
+  const findStash = (id) => id ? (save.stashItems||[]).find(x => x._id === id) : null;
+  const helm = findStash(save.equipped.helmetId);
+  const armor = findStash(save.equipped.armorId);
+  const bagId = save.backpack || "sling";
+  const bag = BACKPACKS[bagId];
+  const wid = save.loadout.weapon;
+  const wpn = resolvedWeapon(wid);
+
+  const slotHTML = (label, item, slotType, extra) => {
+    const empty = !item;
+    const name = empty ? "— empty —" : (item.name || item.type || "");
+    const meta = empty ? "click to equip" : (extra || "");
+    const color = empty ? "#3a4530" : (item.color || "#5f8a3a");
+    const xBtn = empty ? "" : `<div class="unequip-x" data-unequip="${slotType}" title="Unequip">✕</div>`;
+    return `<div class="slot ${empty?'empty':''}" data-slot="${slotType}">
+      <div class="slot-color" style="background:${color};"></div>
+      ${xBtn}
+      <div class="slot-label">${label}</div>
+      <div class="slot-name">${name}</div>
+      <div class="slot-meta">${meta}</div>
+    </div>`;
+  };
+
+  const helmMeta = helm ? `${helm.protect||0}% · ${Math.round(helm.hp||0)}/${helm.maxHp||0} HP` : "";
+  const armorMeta = armor ? `${armor.protect||0}% · ${Math.round(armor.hp||0)}/${armor.maxHp||0} HP` : "";
+  const wpnMeta = wpn ? `${wpn.name||wid} · mag ${wpn.mag} · ${wpn.ammo}` : "no primary";
+  const bagMeta = bag ? `${bag.cols}×${bag.rows} · ${bag.cols*bag.rows} slots` : "";
+
+  let h = '<div class="char-wrap">';
+
+  // Left column
+  h += slotHTML("HELMET", helm, "helmet", helmMeta);
+  h += slotHTML("ARMOR",  armor, "armor",  armorMeta);
+  const rigItem = findStash(save.equipped.rigId);
+  const rigMeta = rigItem ? `${(ITEM_TYPES[rigItem.type]||{}).cols||'?'}×${(ITEM_TYPES[rigItem.type]||{}).rows||'?'} grid` : "no rig";
+  h += slotHTML("RIG (tactical vest)", rigItem, "rig", rigMeta);
+
+  // Center — silhouette
+  h += `<div class="char-doll">
+    <svg class="silhouette" viewBox="0 0 120 280" xmlns="http://www.w3.org/2000/svg">
+      <!-- Head -->
+      <circle cx="60" cy="30" r="22" fill="#cfe0b8" stroke="#8fbf5a" stroke-width="2"/>
+      <!-- Torso -->
+      <path d="M35,60 Q30,55 40,52 L80,52 Q90,55 85,60 L88,140 Q88,150 75,150 L45,150 Q32,150 32,140 Z"
+        fill="#cfe0b8" stroke="#8fbf5a" stroke-width="2"/>
+      <!-- Left arm -->
+      <path d="M35,60 L18,90 L14,150 L28,150 L32,90 Z" fill="#cfe0b8" stroke="#8fbf5a" stroke-width="2"/>
+      <!-- Right arm -->
+      <path d="M85,60 L102,90 L106,150 L92,150 L88,90 Z" fill="#cfe0b8" stroke="#8fbf5a" stroke-width="2"/>
+      <!-- Legs -->
+      <path d="M45,150 L42,240 L55,240 L58,150 Z" fill="#cfe0b8" stroke="#8fbf5a" stroke-width="2"/>
+      <path d="M62,150 L65,240 L78,240 L75,150 Z" fill="#cfe0b8" stroke="#8fbf5a" stroke-width="2"/>
+      <!-- Feet -->
+      <ellipse cx="48" cy="248" rx="10" ry="5" fill="#8fbf5a"/>
+      <ellipse cx="72" cy="248" rx="10" ry="5" fill="#8fbf5a"/>
+    </svg>
+    <div style="position:absolute;bottom:8px;left:0;right:0;text-align:center;color:#8a978a;font-size:.7rem;letter-spacing:.14em;">
+      OPERATOR
+    </div>
+  </div>`;
+
+  // Right column
+  h += slotHTML("BACKPACK", bag ? {name: bag.name || bagId, color:"#7d5a2a"} : null, "backpack_ro", bagMeta);
+  h += slotHTML("PRIMARY WEAPON", wpn ? {name: wpn.name || wid, color:"#4a5540"} : null, "weapon_ro", wpnMeta);
+  h += slotHTML("MELEE", {name:"Combat Knife", color:"#8a978a"}, "melee_ro", "auto-equipped");
+
+  // Meds pouch section
+  h += '<div class="char-section-title">MEDS POUCH — 3 slots · loaded into bag on deploy</div>';
+  h += '<div class="pouch-row" style="grid-column:1/4;">';
+  save.equipped.medsSlots.forEach((id, i) => {
+    const it = findStash(id);
+    if(it){
+      h += `<div class="pouch-slot filled" data-pouch="meds" data-idx="${i}" style="border-color:${it.color||'#5f8a3a'};">
+        <div style="color:#cfe0b8;font-weight:600;">${it.name||it.type}</div>
+        <div style="font-size:.62rem;color:#8a978a;">${it.w}×${it.h} · click to change</div>
+      </div>`;
+    } else {
+      h += `<div class="pouch-slot" data-pouch="meds" data-idx="${i}">+<br/>Meds slot ${i+1}</div>`;
+    }
+  });
+  h += '</div>';
+
+  // Rations pouch section
+  h += '<div class="char-section-title">RATIONS POUCH — 4 slots · loaded into bag on deploy</div>';
+  h += '<div class="pouch-row" style="grid-column:1/4;">';
+  save.equipped.rationsSlots.forEach((id, i) => {
+    const it = findStash(id);
+    if(it){
+      h += `<div class="pouch-slot filled" data-pouch="rations" data-idx="${i}" style="border-color:${it.color||'#5f8a3a'};">
+        <div style="color:#cfe0b8;font-weight:600;">${it.name||it.type}</div>
+        <div style="font-size:.62rem;color:#8a978a;">${it.w}×${it.h} · click to change</div>
+      </div>`;
+    } else {
+      h += `<div class="pouch-slot" data-pouch="rations" data-idx="${i}">+<br/>Ration slot ${i+1}</div>`;
+    }
+  });
+  h += '</div>';
+
+  h += '</div>'; // char-wrap
+
+  // Info footer
+  h += `<div style="padding:10px 6px;color:#8a978a;font-size:.75rem;line-height:1.5;">
+    <b style="color:#cfe0b8;">Tip:</b> Whatever's in your Meds &amp; Rations pouches auto-loads into your raid backpack when you Deploy.
+    Weapons, armor, and helmets are also carried in. If you die, everything equipped is lost — just like in Tarkov.
+    <br/><span style="color:#c78a3a;">Ready to fight?</span> Head to the <b style="color:#8fbf5a;">Deploy</b> tab.
+  </div>`;
+
+  box.innerHTML = h;
+
+  // Wire slot clicks (equip)
+  box.querySelectorAll("[data-slot]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      if(e.target.classList.contains("unequip-x")) return;
+      const slotType = el.dataset.slot;
+      if(slotType.endsWith("_ro")){
+        toast(slotType === "weapon_ro" ? "Change weapon in Deploy tab" :
+              slotType === "backpack_ro" ? "Change backpack in Deploy tab" :
+              slotType === "sidearm_ro" ? "Pistol is your default sidearm" :
+              "Melee is auto-equipped");
+        return;
+      }
+      openSlotPicker(slotType);
+    });
+  });
+
+  box.querySelectorAll("[data-unequip]").forEach(el => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const slotType = el.dataset.unequip;
+      if(slotType === "helmet") delete save.equipped.helmetId;
+      else if(slotType === "armor") delete save.equipped.armorId;
+      else if(slotType === "rig") delete save.equipped.rigId;
+      persist(); renderCharacter();
+    });
+  });
+
+  box.querySelectorAll("[data-pouch]").forEach(el => {
+    el.addEventListener("click", () => {
+      openSlotPicker(el.dataset.pouch, parseInt(el.dataset.idx));
+    });
+  });
+}
+
+function openSlotPicker(slotType, pouchIdx){
+  save.equipped = save.equipped || {};
+  save.equipped.medsSlots = save.equipped.medsSlots || [null,null,null];
+  save.equipped.rationsSlots = save.equipped.rationsSlots || [null,null,null,null];
+  const currentlyIn = new Set([
+    save.equipped.helmetId,
+    save.equipped.armorId,
+    ...(save.equipped.medsSlots||[]),
+    ...(save.equipped.rationsSlots||[])
+  ].filter(Boolean));
+
+  let filter, title;
+  if(slotType === "helmet"){
+    filter = it => (ITEM_TYPES[it.type]||{}).slot === "helmet";
+    title = "SELECT HELMET";
+  } else if(slotType === "armor"){
+    filter = it => (ITEM_TYPES[it.type]||{}).slot === "armor";
+    title = "SELECT ARMOR";
+  } else if(slotType === "rig"){
+    filter = it => (ITEM_TYPES[it.type]||{}).slot === "rig";
+    title = "SELECT RIG (tactical vest)";
+  } else if(slotType === "meds"){
+    filter = it => it.type === "medkit" || it.type === "grenade";
+    title = "SELECT MEDS ITEM (medkit / grenade)";
+  } else if(slotType === "rations"){
+    filter = it => it.type && (it.type.startsWith("food_") || it.type.startsWith("drink_"));
+    title = "SELECT RATION (food / drink)";
+  } else {
+    return;
+  }
+
+  const candidates = (save.stashItems||[]).filter(it => filter(it) && !currentlyIn.has(it._id));
+  const currentId = slotType === "helmet" ? save.equipped.helmetId
+                  : slotType === "armor" ? save.equipped.armorId
+                  : slotType === "rig" ? save.equipped.rigId
+                  : slotType === "meds" ? save.equipped.medsSlots[pouchIdx]
+                  : save.equipped.rationsSlots[pouchIdx];
+  const currentItem = currentId ? (save.stashItems||[]).find(x => x._id === currentId) : null;
+
+  let h = `<div class="picker-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="color:#cfe0b8;font-weight:700;letter-spacing:.06em;">${title}</div>
+      <button class="btn" id="pickerCloseBtn">Close</button>
+    </div>`;
+  if(currentItem){
+    h += `<div class="picker-item" style="border-left-color:#c78a3a;" data-clear="1">
+      <div>
+        <div style="color:#c78a3a;font-weight:700;">CURRENT: ${currentItem.name||currentItem.type}</div>
+        <div style="font-size:.7rem;color:#8a978a;">Click to unequip</div>
+      </div>
+      <div style="color:#c74a3a;font-weight:700;">✕</div>
+    </div>`;
+  }
+  if(candidates.length === 0){
+    h += '<div style="color:#8a978a;padding:14px;text-align:center;">No matching items in stash. Buy some in the Market.</div>';
+  } else {
+    candidates.forEach(it => {
+      if(!it._id) it._id = "s_" + Math.random().toString(36).slice(2,10);
+      const meta = ITEM_TYPES[it.type] || {};
+      const size = it.w + "×" + it.h;
+      const extra = (meta.protect ? ` · ${meta.protect}% reduction · HP ${it.hp||meta.maxHp}/${meta.maxHp}` : '') +
+                    (meta.hunger ? ` · +${meta.hunger} hunger` : '') +
+                    (meta.thirst ? ` · +${meta.thirst} thirst` : '');
+      h += `<div class="picker-item" data-pick="${it._id}" style="border-left-color:${it.color||'#5f8a3a'};">
+        <div>
+          <div style="color:#cfe0b8;font-weight:600;">${it.name||it.type}</div>
+          <div style="font-size:.68rem;color:#8a978a;">${size}${extra}</div>
+        </div>
+        <div style="color:#8fbf5a;font-weight:700;">EQUIP →</div>
+      </div>`;
+    });
+  }
+  h += '</div>';
+
+  const overlay = document.getElementById("slotPickerOverlay");
+  overlay.innerHTML = h;
+  overlay.classList.add("show");
+
+  const close = () => { overlay.classList.remove("show"); };
+  document.getElementById("pickerCloseBtn").addEventListener("click", close);
+
+  overlay.querySelectorAll("[data-pick]").forEach(el => {
+    el.addEventListener("click", () => {
+      const id = el.dataset.pick;
+      if(slotType === "helmet") save.equipped.helmetId = id;
+      else if(slotType === "armor") save.equipped.armorId = id;
+      else if(slotType === "rig") save.equipped.rigId = id;
+      else if(slotType === "meds") save.equipped.medsSlots[pouchIdx] = id;
+      else if(slotType === "rations") save.equipped.rationsSlots[pouchIdx] = id;
+      persist(); close(); renderCharacter();
+    });
+  });
+  overlay.querySelectorAll("[data-clear]").forEach(el => {
+    el.addEventListener("click", () => {
+      if(slotType === "helmet") delete save.equipped.helmetId;
+      else if(slotType === "armor") delete save.equipped.armorId;
+      else if(slotType === "rig") delete save.equipped.rigId;
+      else if(slotType === "meds") save.equipped.medsSlots[pouchIdx] = null;
+      else if(slotType === "rations") save.equipped.rationsSlots[pouchIdx] = null;
+      persist(); close(); renderCharacter();
+    });
+  });
+}
+
 function renderStash(){
   const box=document.getElementById("tab-stash");
   const bagId = save.backpack || "sling";
@@ -2469,8 +3358,40 @@ function renderStash(){
   h += `<div class="row"><div class="nm">Food</div><div class="sub">${c(it=>it.type&&it.type.startsWith("food_"))}</div></div>`;
   h += `<div class="row"><div class="nm">Drinks</div><div class="sub">${c(it=>it.type&&it.type.startsWith("drink_"))}</div></div>`;
 
-  // Recent misc loot log (auto-sold on extract)
-  const misc = (save.miscLootLog||[]).slice(-20).reverse();
+  // === Full stash listing with equip / sell buttons ===
+  h += '<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">FULL STASH — equip / sell</div>';
+  save.stashItems = save.stashItems || [];
+  save.equipped = save.equipped || {};
+  if(save.stashItems.length === 0){
+    h += '<div style="color:#6f7c6c;font-size:.75rem;padding:12px;">Empty stash.</div>';
+  } else {
+    save.stashItems.forEach((it, idx) => {
+      if(!it._id) it._id = "s_" + Math.random().toString(36).slice(2,10);
+      const price = sellPriceOf(it);
+      const meta = ITEM_TYPES[it.type];
+      const isArmor = meta && meta.slot === "armor";
+      const isHelmet = meta && meta.slot === "helmet";
+      const equipped = (isArmor && save.equipped.armorId === it._id) ||
+                       (isHelmet && save.equipped.helmetId === it._id);
+      const size = it.w + "×" + it.h;
+      const rar = it.rarity ? `<span class="pill" style="background:${(RARITIES[it.rarity]||{}).color||'#9CA3AF'}22;color:${(RARITIES[it.rarity]||{}).color||'#9CA3AF'};">${it.rarity}</span>` : '';
+      const hpBadge = (isArmor || isHelmet) ? ` · HP ${it.hp||meta.maxHp}/${meta.maxHp}` : '';
+      const roundsBadge = it.rounds ? ` · ${it.rounds} rounds` : '';
+      h += `<div class="row" style="border-left:3px solid ${it.color||'#5f8a3a'};padding-left:8px;">
+        <div>
+          <div class="nm">${it.name||it.type} ${equipped?'<span class="pill" style="background:#22301a;color:#8fbf5a;border-color:#8fbf5a;">EQUIPPED</span>':''}</div>
+          <div class="sub">${size}${rar}${hpBadge}${roundsBadge}</div>
+        </div>
+        <div style="display:flex;gap:4px;">
+          ${(isArmor || isHelmet) ? `<button class="btn ${equipped?'equipped':''}" data-eq="${it._id}">${equipped?'Unequip':'Equip'}</button>` : ''}
+          <button class="btn" data-sell="${it._id}">Sell ₽${fmt(price)}</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  // Recent misc loot log
+  const misc = (save.miscLootLog||[]).slice(-15).reverse();
   if(misc.length){
     h += '<div style="margin:14px 0 8px;color:#8a978a;font-size:.8rem;">RECENT MISC LOOT (auto-sold on extract)</div>';
     misc.forEach(it => {
@@ -2479,6 +3400,29 @@ function renderStash(){
     });
   }
   box.innerHTML = h;
+
+  // Wire up sell/equip handlers
+  box.querySelectorAll("[data-sell]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.sell;
+    const idx = save.stashItems.findIndex(x => x._id === id);
+    if(idx < 0) return;
+    const it = save.stashItems[idx];
+    const price = sellPriceOf(it);
+    if(save.equipped.armorId === it._id) delete save.equipped.armorId;
+    if(save.equipped.helmetId === it._id) delete save.equipped.helmetId;
+    save.stashItems.splice(idx, 1);
+    save.money += price;
+    persist(); refreshTop(); renderStash();
+  }));
+  box.querySelectorAll("[data-eq]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.eq;
+    const it = save.stashItems.find(x => x._id === id); if(!it) return;
+    const slot = ITEM_TYPES[it.type].slot;
+    const key = slot === "armor" ? "armorId" : "helmetId";
+    if(save.equipped[key] === id){ delete save.equipped[key]; }
+    else { save.equipped[key] = id; }
+    persist(); renderStash();
+  }));
 }
 
 function showResult(success, reason, lines){
@@ -2503,6 +3447,7 @@ document.getElementById("wipeBtn").addEventListener("click",()=>{
 
 // ============================================================= BOOT
 document.getElementById("bagCloseBtn").addEventListener("click", closeBag);
+document.getElementById("pickupCloseBtnTop").addEventListener("click", closePickup);
 document.getElementById("bagSortBtn").addEventListener("click", sortBag);
 // clicking on the HUD bag counter opens the overlay too
 document.getElementById("hBag").style.cursor = "pointer";
