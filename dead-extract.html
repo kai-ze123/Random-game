@@ -352,6 +352,20 @@
   </div>
 </div>
 <div id="slotPickerOverlay"></div>
+<div id="corpseOverlay" style="position:fixed;inset:0;z-index:9;display:none;flex-direction:column;
+  background:rgba(6,10,6,.88);align-items:center;justify-content:center;padding:16px;">
+  <div class="bag-modal" style="max-width:560px;width:100%;max-height:88vh;overflow-y:auto;">
+    <div class="header">
+      <div id="corpseTitle">CORPSE  ·  loot</div>
+      <div class="actions">
+        <button class="btn" id="corpseTakeAllBtn">Take all</button>
+        <button class="btn" id="corpseCloseBtn">Close (E)</button>
+      </div>
+    </div>
+    <div id="corpseBody"></div>
+  </div>
+</div>
+<style>#corpseOverlay.show{display:flex;}</style>
 <div id="pickupOverlay" style="position:fixed;inset:0;z-index:8;display:none;flex-direction:column;
   background:rgba(6,10,6,.86);align-items:center;justify-content:center;padding:20px;">
   <div class="bag-modal" style="max-width:500px;">
@@ -561,6 +575,12 @@ const ITEM_TYPES = {
   rig_chest:   { w:2, h:2, color:"#4a5540", name:"Chest Rig",    slot:"rig", cols:4, rows:3, sell: 2200 },
   rig_tac:     { w:2, h:3, color:"#3e4a30", name:"Tactical Rig", slot:"rig", cols:5, rows:3, sell: 5000 },
   rig_heavy:   { w:3, h:3, color:"#2a3226", name:"Heavy Rig",    slot:"rig", cols:5, rows:4, sell: 9500 },
+  // Weapons-as-items: what you find on enemy corpses. On extract, weaponId unlocks in save.owned
+  wpn_pistol:  { w:2, h:1, color:"#3a4530", name:"PM Pistol",     weaponId:"pistol",  sell: 2200 },
+  wpn_smg:     { w:3, h:1, color:"#3a4530", name:"MP5 SMG",       weaponId:"smg",     sell: 6500 },
+  wpn_shotgun: { w:4, h:1, color:"#3a4530", name:"Pump Shotgun",  weaponId:"shotgun", sell: 8500 },
+  wpn_rifle:   { w:4, h:2, color:"#3a4530", name:"AK Rifle",      weaponId:"rifle",   sell: 14000 },
+  wpn_sniper:  { w:5, h:2, color:"#3a4530", name:"Bolt Sniper",   weaponId:"sniper",  sell: 22000 },
 };
 function miscGridSize(rarity){
   return ({ common:{w:1,h:1}, uncommon:{w:1,h:2}, rare:{w:2,h:2}, epic:{w:2,h:3} })[rarity] || {w:1,h:1};
@@ -864,7 +884,7 @@ resize();
 // ============================================================= WORLD
 const WORLD = {w:2600, h:2000};
 let state = "menu";
-let player, enemies, bullets, ebullets, crates, walls, extracts, particles, cam, grenades, groundItems;
+let player, enemies, bullets, ebullets, crates, walls, extracts, particles, cam, grenades, groundItems, corpses;
 let raidTime, lastSpawn, extractProgress, extractZone, raidBag, screenShake, running=false;
 let paused = false;
 let damageNumbers = [];
@@ -982,7 +1002,7 @@ function startRaid(){
     rig: window._pendingRig || null
   };
   window._pendingRig = null;
-  enemies=[]; bullets=[]; ebullets=[]; particles=[]; grenades=[]; groundItems=[];
+  enemies=[]; corpses=[]; bullets=[]; ebullets=[]; particles=[]; grenades=[]; groundItems=[];
   crates=[]; walls=[]; extracts=[];
   raidTime=1800; lastSpawn=0; extractProgress=0; extractZone=null; screenShake=0;
   raidBag={money:0, ammo:{}, meds:0, killed:0};
@@ -1046,6 +1066,7 @@ function spawnEnemy(anywhere){
   if(roll<0.55) e={type:"zombie", x,y,r:14, hp:60,maxhp:60, speed:rr(0.7,1.0), dmg:12, atk:0, aggro:340, col:"#5f8a3a"};
   else if(roll<0.82) e={type:"runner", x,y,r:11, hp:30,maxhp:30, speed:rr(2.3,2.9), dmg:8, atk:0, aggro:460, col:"#c74a3a"};
   else e={type:"spitter", x,y,r:13, hp:46,maxhp:46, speed:1.0, dmg:16, atk:0, aggro:520, col:"#9a5ac7", shoot:0, keep:250};
+  e.loadout = makeEnemyLoadout(e.type);
   enemies.push(e);
 }
 
@@ -1196,13 +1217,20 @@ function startHeal(){
 }
 function interact(){
   const p=player;
-  // Ground items first — if any within pickup range, open pickup UI
+  // Corpses first — walk right up to them and E
+  for(const cp of corpses){
+    if(!cp.looted && dist2(p.x, p.y, cp.x, cp.y) < 44*44){
+      openCorpseUI(cp);
+      return;
+    }
+  }
+  // Then ground items
   const near = groundItems.filter(g => dist2(p.x, p.y, g.x, g.y) < 44*44);
   if(near.length > 0){
     openPickupUI(near);
     return;
   }
-  // Otherwise loot crate
+  // Then loot crate
   for(const c of crates){
     if(!c.open && dist2(p.x,p.y,c.x,c.y)<44*44){
       openCrate(c); return;
@@ -1308,6 +1336,216 @@ function dropItem(item, sourceBag){
   renderBagOverlay();
   updateHUD();
 }
+function openCorpseUI(cp){
+  if(state !== "raid") return;
+  paused = true;
+  document.getElementById("bagOverlay").classList.remove("show");
+  document.getElementById("pickupOverlay").classList.remove("show");
+  renderCorpseOverlay(cp);
+  document.getElementById("corpseOverlay").classList.add("show");
+}
+function closeCorpse(){
+  paused = false;
+  document.getElementById("corpseOverlay").classList.remove("show");
+}
+function corpseItemsRemaining(cp){
+  const l = cp.loadout;
+  if(!l) return 0;
+  return (l.weapon ? 1 : 0) + (l.rig ? 1 : 0) + (l.armor ? 1 : 0) + (l.helmet ? 1 : 0) + (l.pockets ? l.pockets.length : 0);
+}
+function tryTakeItem(item){
+  // Try rig first (quick access), then backpack, then drop on ground
+  const clone = () => { const c = JSON.parse(JSON.stringify(item)); delete c.x; delete c.y; delete c.rotated; return c; };
+  if(player.rig && bagTryPlace(player.rig, clone())) return "rig";
+  if(bagTryPlace(player.backpack, clone())) return "bag";
+  // Drop on ground near player
+  const c = clone();
+  c._gid = Math.random().toString(36).slice(2, 10);
+  groundItems.push({ x: player.x + rr(-14,14), y: player.y + rr(20,30), item: c });
+  return "ground";
+}
+function renderCorpseOverlay(cp){
+  document.getElementById("corpseTitle").textContent =
+    (cp.type ? cp.type.toUpperCase() : "CORPSE") + "  ·  " + corpseItemsRemaining(cp) + " items";
+  const body = document.getElementById("corpseBody");
+  const l = cp.loadout || {};
+  let h = '';
+
+  // WEAPON
+  if(l.weapon){
+    const wt = ITEM_TYPES["wpn_" + l.weapon.weaponId];
+    h += `<div style="margin:8px 0 4px;color:#c78a3a;font-size:.72rem;letter-spacing:.14em;font-weight:700;">WEAPON</div>`;
+    h += `<div class="picker-item" data-take="weapon" style="border-left-color:#c78a3a;">
+      <div>
+        <div style="color:#cfe0b8;font-weight:600;">${l.weapon.name}</div>
+        <div style="font-size:.68rem;color:#8a978a;">${l.weapon.rounds} rounds loaded · ${l.weapon.ammoType} · ${wt?wt.w+'×'+wt.h:'—'} in bag</div>
+      </div>
+      <div style="color:#8fbf5a;font-weight:700;">TAKE →</div>
+    </div>`;
+  }
+
+  // RIG
+  if(l.rig){
+    const rm = ITEM_TYPES[l.rig.type] || {};
+    h += `<div style="margin:14px 0 4px;color:#c78a3a;font-size:.72rem;letter-spacing:.14em;font-weight:700;">RIG</div>`;
+    h += `<div class="picker-item" data-take="rig" style="border-left-color:${rm.color||'#5f8a3a'};">
+      <div>
+        <div style="color:#cfe0b8;font-weight:600;">${l.rig.name} (${l.rig.cols}×${l.rig.rows})</div>
+        <div style="font-size:.68rem;color:#8a978a;">Contains ${l.rig.items.length} items · takes ${rm.w||2}×${rm.h||2} in bag</div>
+      </div>
+      <div style="color:#8fbf5a;font-weight:700;">TAKE RIG →</div>
+    </div>`;
+    // Show rig contents individually so player can take just some
+    if(l.rig.items.length > 0){
+      h += `<div style="padding-left:14px;">`;
+      l.rig.items.forEach((it, i) => {
+        h += `<div class="picker-item" data-take="rigitem" data-idx="${i}" style="border-left-color:${it.color||'#5f8a3a'};margin:2px 0;padding:6px 10px;">
+          <div>
+            <div style="color:#cfe0b8;font-weight:500;font-size:.82rem;">${it.name||it.type}${it.rounds?' · '+it.rounds+'r':''}</div>
+            <div style="font-size:.64rem;color:#8a978a;">from rig · ${it.w}×${it.h}</div>
+          </div>
+          <div style="color:#8fbf5a;font-weight:700;">→</div>
+        </div>`;
+      });
+      h += `</div>`;
+    }
+  }
+
+  // ARMOR
+  if(l.armor){
+    h += `<div style="margin:14px 0 4px;color:#c78a3a;font-size:.72rem;letter-spacing:.14em;font-weight:700;">ARMOR</div>`;
+    h += `<div class="picker-item" data-take="armor" style="border-left-color:${l.armor.color||'#5f8a3a'};">
+      <div>
+        <div style="color:#cfe0b8;font-weight:600;">${l.armor.name}</div>
+        <div style="font-size:.68rem;color:#8a978a;">${l.armor.protect||0}% reduction · ${Math.round(l.armor.hp||0)}/${l.armor.maxHp||0} HP · ${l.armor.w}×${l.armor.h}</div>
+      </div>
+      <div style="color:#8fbf5a;font-weight:700;">TAKE →</div>
+    </div>`;
+  }
+
+  // HELMET
+  if(l.helmet){
+    h += `<div style="margin:14px 0 4px;color:#c78a3a;font-size:.72rem;letter-spacing:.14em;font-weight:700;">HELMET</div>`;
+    h += `<div class="picker-item" data-take="helmet" style="border-left-color:${l.helmet.color||'#5f8a3a'};">
+      <div>
+        <div style="color:#cfe0b8;font-weight:600;">${l.helmet.name}</div>
+        <div style="font-size:.68rem;color:#8a978a;">${l.helmet.protect||0}% reduction · ${Math.round(l.helmet.hp||0)}/${l.helmet.maxHp||0} HP · ${l.helmet.w}×${l.helmet.h}</div>
+      </div>
+      <div style="color:#8fbf5a;font-weight:700;">TAKE →</div>
+    </div>`;
+  }
+
+  // POCKETS
+  if(l.pockets && l.pockets.length > 0){
+    h += `<div style="margin:14px 0 4px;color:#c78a3a;font-size:.72rem;letter-spacing:.14em;font-weight:700;">POCKETS</div>`;
+    l.pockets.forEach((it, i) => {
+      h += `<div class="picker-item" data-take="pocket" data-idx="${i}" style="border-left-color:${it.color||'#5f8a3a'};">
+        <div>
+          <div style="color:#cfe0b8;font-weight:600;">${it.name||it.type}${it.rounds?' · '+it.rounds+'r':''}</div>
+          <div style="font-size:.68rem;color:#8a978a;">${it.w}×${it.h}</div>
+        </div>
+        <div style="color:#8fbf5a;font-weight:700;">TAKE →</div>
+      </div>`;
+    });
+  }
+
+  if(!l.weapon && !l.rig && !l.armor && !l.helmet && (!l.pockets || l.pockets.length === 0)){
+    h += `<div style="color:#8a978a;padding:20px;text-align:center;font-style:italic;">Nothing left on this corpse.</div>`;
+    cp.looted = true;
+  }
+
+  body.innerHTML = h;
+
+  const takeWeapon = () => {
+    if(!l.weapon) return;
+    const itemType = "wpn_" + l.weapon.weaponId;
+    const meta = ITEM_TYPES[itemType];
+    if(!meta){ toast("Unknown weapon"); return; }
+    const item = makeItem(itemType);
+    item.weaponId = meta.weaponId;
+    item.rounds = l.weapon.rounds;
+    item.ammoType = l.weapon.ammoType;
+    const where = tryTakeItem(item);
+    l.weapon = null;
+    toast("Weapon → " + where);
+    renderCorpseOverlay(cp);
+    updateHUD();
+  };
+  const takeRig = () => {
+    if(!l.rig) return;
+    const rigMeta = ITEM_TYPES[l.rig.type];
+    const item = makeItem(l.rig.type);
+    const where = tryTakeItem(item);
+    // Rig's items spill: try to place each into bag/rig, else ground
+    for(const it of l.rig.items){
+      tryTakeItem(it);
+    }
+    l.rig = null;
+    toast("Rig + contents → " + where);
+    renderCorpseOverlay(cp);
+    updateHUD();
+  };
+  const takeArmor = () => {
+    if(!l.armor) return;
+    const item = {...l.armor};
+    const where = tryTakeItem(item);
+    l.armor = null;
+    toast("Armor → " + where);
+    renderCorpseOverlay(cp);
+    updateHUD();
+  };
+  const takeHelmet = () => {
+    if(!l.helmet) return;
+    const item = {...l.helmet};
+    const where = tryTakeItem(item);
+    l.helmet = null;
+    toast("Helmet → " + where);
+    renderCorpseOverlay(cp);
+    updateHUD();
+  };
+  const takePocket = (idx) => {
+    const it = l.pockets[idx]; if(!it) return;
+    // Ammo of matching caliber goes directly into reserve
+    if(it.type && it.type.startsWith("ammo_") && it.ammoType === player.ammoType){
+      player.reserve += it.rounds || 0;
+      l.pockets.splice(idx, 1);
+      toast("+" + (it.rounds||0) + " " + player.ammoType);
+      renderCorpseOverlay(cp); updateHUD(); return;
+    }
+    const where = tryTakeItem(it);
+    l.pockets.splice(idx, 1);
+    toast("+" + (it.name||it.type) + " → " + where);
+    renderCorpseOverlay(cp); updateHUD();
+  };
+  const takeRigItem = (idx) => {
+    if(!l.rig) return;
+    const it = l.rig.items[idx]; if(!it) return;
+    if(it.type && it.type.startsWith("ammo_") && it.ammoType === player.ammoType){
+      player.reserve += it.rounds || 0;
+      l.rig.items.splice(idx, 1);
+      toast("+" + (it.rounds||0) + " " + player.ammoType);
+      renderCorpseOverlay(cp); updateHUD(); return;
+    }
+    const where = tryTakeItem(it);
+    l.rig.items.splice(idx, 1);
+    toast("+" + (it.name||it.type) + " → " + where);
+    renderCorpseOverlay(cp); updateHUD();
+  };
+
+  body.querySelectorAll("[data-take]").forEach(el => {
+    el.addEventListener("click", () => {
+      const kind = el.dataset.take;
+      const idx = el.dataset.idx !== undefined ? parseInt(el.dataset.idx) : -1;
+      if(kind === "weapon") takeWeapon();
+      else if(kind === "rig") takeRig();
+      else if(kind === "armor") takeArmor();
+      else if(kind === "helmet") takeHelmet();
+      else if(kind === "pocket") takePocket(idx);
+      else if(kind === "rigitem") takeRigItem(idx);
+    });
+  });
+}
+
 function openPickupUI(items){
   if(state !== "raid") return;
   paused = true;
@@ -1794,28 +2032,74 @@ function hurt(d){
 function killEnemy(e){
   raidBag.killed++;
   for(let i=0;i<10;i++) particles.push({x:e.x,y:e.y,vx:rr(-3,3),vy:rr(-3,3),life:22,col:"#8a2f1f"});
-  // Loot drop chances vary by enemy type
-  const rolls = e.type === "spitter" ? 2 : (e.type === "zombie" ? 1 : 0.5);
-  for(let i=0; i<Math.ceil(rolls); i++){
-    const r = Math.random();
-    if(r < 0.55){
-      // Loose ammo (small stack matching player's current caliber)
-      const ammoItem = makeItem("ammo_" + (player.ammoType || "9mm"));
-      ammoItem.rounds = Math.floor(rr(6, 16));
-      dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), ammoItem);
-    } else if(r < 0.75){
-      dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeItem("medkit"));
-    } else if(r < 0.85){
-      dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeItem("grenade"));
-    } else if(r < 0.92){
-      // Rare armor drop (spitters especially)
-      if(e.type === "spitter" || Math.random() < 0.3) dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeArmor());
-      else dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeHelmet());
-    } else {
-      dropOnGround(e.x + rr(-8,8), e.y + rr(-8,8), makeMiscItemGrid());
-    }
+  // Leave the corpse behind holding the enemy's full inventory
+  corpses.push({
+    x: e.x, y: e.y, r: e.r, type: e.type,
+    angle: e.angle || rr(0, Math.PI*2),
+    col: e.col,
+    loadout: e.loadout || makeEnemyLoadout(e.type),
+    looted: false,
+    _id: Math.random().toString(36).slice(2,10)
+  });
+  toast(e.type + " down — press E to loot");
+}
+
+// Randomised loadout attached to each enemy on spawn (accessed on death)
+function makeEnemyLoadout(enemyType){
+  const wealth = enemyType === "spitter" ? 2.6 : (enemyType === "runner" ? 1.4 : 1.0);
+  const loadout = { weapon:null, rig:null, armor:null, helmet:null, pockets:[] };
+  // Weapon
+  if(Math.random() < 0.32 * wealth){
+    const roll = Math.random();
+    const wid = roll < 0.45 ? "pistol"
+              : roll < 0.70 ? "smg"
+              : roll < 0.85 ? "shotgun"
+              : roll < 0.97 ? "rifle" : "sniper";
+    const w = WEAPONS[wid];
+    loadout.weapon = { weaponId: wid, name: w.name, rounds: Math.floor(rr(4, w.mag + 4)), ammoType: w.ammo };
   }
-  toast(e.type+" down");
+  // Rig with contents
+  if(Math.random() < 0.28 * wealth){
+    const roll = Math.random();
+    const rid = roll < 0.55 ? "rig_scav" : roll < 0.85 ? "rig_chest" : "rig_tac";
+    const meta = ITEM_TYPES[rid];
+    const rig = { type: rid, name: meta.name, cols: meta.cols, rows: meta.rows, items: [] };
+    const nItems = Math.floor(rr(1, 4));
+    for(let i = 0; i < nItems; i++){
+      const r = Math.random();
+      let it;
+      if(r < 0.4){
+        const kinds = ["ammo_9mm","ammo_12g","ammo_545","ammo_762"];
+        it = makeItem(kinds[Math.floor(Math.random()*kinds.length)]);
+        it.rounds = Math.floor(rr(8, 25));
+      } else if(r < 0.6) it = makeItem("medkit");
+      else if(r < 0.75) it = makeItem("grenade");
+      else if(r < 0.9) it = makeMiscItemGrid();
+      else it = makeItem(Math.random() < 0.5 ? "food_bar" : "drink_can");
+      bagTryPlace(rig, it);
+    }
+    loadout.rig = rig;
+  }
+  // Armor
+  if(Math.random() < 0.14 * wealth) loadout.armor = makeArmor();
+  // Helmet
+  if(Math.random() < 0.20 * wealth) loadout.helmet = makeHelmet();
+  // Pocket items
+  const nPockets = Math.floor(rr(0, 3));
+  for(let i = 0; i < nPockets; i++){
+    const r = Math.random();
+    if(r < 0.4){
+      const kinds = ["ammo_9mm","ammo_12g","ammo_545","ammo_762"];
+      const item = makeItem(kinds[Math.floor(Math.random()*kinds.length)]);
+      item.rounds = Math.floor(rr(5, 15));
+      loadout.pockets.push(item);
+    }
+    else if(r < 0.6) loadout.pockets.push(makeItem("medkit"));
+    else if(r < 0.75) loadout.pockets.push(makeItem("grenade"));
+    else if(r < 0.9) loadout.pockets.push(makeMiscItemGrid());
+    else loadout.pockets.push(makeItem("food_bar"));
+  }
+  return loadout;
 }
 
 function dropOnGround(x, y, item){
@@ -1845,21 +2129,39 @@ function endRaid(success, reason){
     save.stashItems = save.stashItems || [];
     save.miscLootLog = save.miscLootLog || [];
     const keptCounts = { medkit:0, grenade:0, food:0, drink:0 };
-    for(const it of p.backpack.items){
+    // Combine backpack + rig items for extraction
+    const allExtractItems = [...p.backpack.items, ...((p.rig && p.rig.items) || [])];
+    let unlockedWeapons = [];
+    for(const it of allExtractItems){
       if(it.type === "misc"){
         miscVal += it.value || 0;
         miscCount++;
         save.miscLootLog.push({ id:it.id, name:it.name, rarity:it.rarity, value:it.value });
+      } else if(it.weaponId || (ITEM_TYPES[it.type] && ITEM_TYPES[it.type].weaponId)){
+        const wid = it.weaponId || ITEM_TYPES[it.type].weaponId;
+        if(!save.owned[wid]) unlockedWeapons.push(WEAPONS[wid] ? WEAPONS[wid].name : wid);
+        save.owned[wid] = true;
+        // Bonus ammo from any loaded rounds
+        if(it.rounds && it.ammoType){
+          save.ammo[it.ammoType] = (save.ammo[it.ammoType] || 0) + it.rounds;
+        }
       } else {
         // Strip grid position before returning to stash
         const clean = { type:it.type, w:it.w, h:it.h, color:it.color, name:it.name,
-                        hunger:it.hunger, thirst:it.thirst };
+                        hunger:it.hunger, thirst:it.thirst,
+                        protect:it.protect, hp:it.hp, maxHp:it.maxHp,
+                        rounds:it.rounds, ammoType:it.ammoType,
+                        cols:it.cols, rows:it.rows, slot:(ITEM_TYPES[it.type]||{}).slot };
+        clean._id = "s_" + Math.random().toString(36).slice(2,10);
         save.stashItems.push(clean);
         if(it.type === "medkit") keptCounts.medkit++;
         else if(it.type === "grenade") keptCounts.grenade++;
-        else if(it.type.startsWith("food_")) keptCounts.food++;
-        else if(it.type.startsWith("drink_")) keptCounts.drink++;
+        else if(it.type && it.type.startsWith("food_")) keptCounts.food++;
+        else if(it.type && it.type.startsWith("drink_")) keptCounts.drink++;
       }
+    }
+    if(unlockedWeapons.length){
+      lootLines.push("Weapons unlocked: " + unlockedWeapons.join(", "));
     }
     save.money += miscVal;
     lootLines.push("Cash secured: ₽"+(raidBag.money+miscVal));
@@ -1904,6 +2206,62 @@ function endRaid(success, reason){
 }
 
 // ============================================================= ENEMY SHAPES
+function drawCorpse(cp){
+  const inRange = dist2(player.x, player.y, cp.x, cp.y) < 44*44;
+  ctx.save();
+  // Blood pool beneath the body
+  ctx.fillStyle = "rgba(90,20,15,0.55)";
+  ctx.beginPath(); ctx.ellipse(cp.x, cp.y+2, cp.r*1.4, cp.r*0.9, 0, 0, 7); ctx.fill();
+  // Body — flat oval, darker version of enemy colour
+  ctx.translate(cp.x, cp.y);
+  ctx.rotate(cp.angle);
+  ctx.fillStyle = "#3a3830";
+  ctx.strokeStyle = "#1a1a15";
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(0, 0, cp.r*1.15, cp.r*0.65, 0, 0, 7); ctx.fill(); ctx.stroke();
+  // Small marker dot (head)
+  ctx.fillStyle = cp.col ? shade(cp.col, -0.5) : "#5a5548";
+  ctx.beginPath(); ctx.arc(cp.r*0.55, 0, cp.r*0.32, 0, 7); ctx.fill();
+  // X marks the eyes (dead)
+  ctx.strokeStyle = "#1a1a10"; ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(cp.r*0.45,-2); ctx.lineTo(cp.r*0.65, 2);
+  ctx.moveTo(cp.r*0.65,-2); ctx.lineTo(cp.r*0.45, 2);
+  ctx.stroke();
+  ctx.restore();
+  // "LOOT" hint above the body if in range and not looted
+  if(inRange && !cp.looted){
+    const t = (performance.now() % 800) / 800;
+    ctx.strokeStyle = `rgba(255,230,128,${0.5 + 0.4*Math.sin(t*Math.PI*2)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cp.x, cp.y, cp.r + 8, 0, 7); ctx.stroke();
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const label = cp.type + " · press E";
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = "rgba(0,0,0,0.78)";
+    ctx.fillRect(cp.x - tw/2 - 6, cp.y - cp.r - 22, tw + 12, 15);
+    ctx.fillStyle = "#ffe680";
+    ctx.fillText(label, cp.x, cp.y - cp.r - 14);
+  } else if(cp.looted){
+    // Grey "looted" tag
+    ctx.font = "9px sans-serif";
+    ctx.fillStyle = "rgba(100,110,95,0.65)";
+    ctx.textAlign = "center";
+    ctx.fillText("looted", cp.x, cp.y - cp.r - 10);
+  }
+}
+
+// Helper for colour tinting
+function shade(hex, pct){
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n>>16)&255, g=(n>>8)&255, b=n&255;
+  r = Math.round(r + (pct<0 ? r*pct : (255-r)*pct));
+  g = Math.round(g + (pct<0 ? g*pct : (255-g)*pct));
+  b = Math.round(b + (pct<0 ? b*pct : (255-b)*pct));
+  return "#" + [r,g,b].map(v=>Math.max(0,Math.min(255,v)).toString(16).padStart(2,"0")).join("");
+}
+
 function drawEnemy(e){
   const a = e.facing || 0;
   ctx.save();
@@ -2149,6 +2507,7 @@ function render(){
   for(const b of ebullets){ ctx.beginPath();ctx.arc(b.x,b.y,4,0,7);ctx.fill(); }
 
   // enemies
+  for(const cp of corpses){ drawCorpse(cp); }
   for(const e of enemies){ drawEnemy(e); }
 
   // player
@@ -3448,6 +3807,23 @@ document.getElementById("wipeBtn").addEventListener("click",()=>{
 // ============================================================= BOOT
 document.getElementById("bagCloseBtn").addEventListener("click", closeBag);
 document.getElementById("pickupCloseBtnTop").addEventListener("click", closePickup);
+document.getElementById("corpseCloseBtn").addEventListener("click", closeCorpse);
+document.getElementById("corpseTakeAllBtn").addEventListener("click", () => {
+  // Find currently opened corpse — simplest: iterate open corpses in range
+  for(const cp of corpses){
+    if(!cp.looted && dist2(player.x, player.y, cp.x, cp.y) < 60*60){
+      // Simulate clicking every button
+      const rows = document.querySelectorAll("#corpseBody [data-take]");
+      rows.forEach(r => r.click());
+      // If nothing left, mark looted and close
+      if(corpseItemsRemaining(cp) === 0){
+        cp.looted = true;
+        closeCorpse();
+      }
+      return;
+    }
+  }
+});
 document.getElementById("bagSortBtn").addEventListener("click", sortBag);
 // clicking on the HUD bag counter opens the overlay too
 document.getElementById("hBag").style.cursor = "pointer";
