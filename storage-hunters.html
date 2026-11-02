@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Storage Wars: Auction Hunter</title>
+<style>
+  :root{
+    --bg:#15171c; --panel:#1f232b; --panel2:#272c36; --line:#333a46;
+    --txt:#e8ecf2; --muted:#9aa3b2; --gold:#f5c542; --green:#3fcf6b;
+    --red:#e2574c; --blue:#4aa3ff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+    font-family:"Segoe UI",system-ui,Arial,sans-serif;overscroll-behavior:none}
+  #app{max-width:760px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;background:linear-gradient(180deg,#242934,#1b1f27);
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  .brand{font-weight:800;letter-spacing:.5px;font-size:16px}
+  .brand .b{color:var(--gold)}
+  .wallet{display:flex;gap:14px;align-items:center;font-weight:700}
+  .wallet .cash{color:var(--green)}
+  .wallet .lvl{color:var(--gold);font-size:12px;background:#2a2f3a;padding:3px 8px;border-radius:20px}
+  main{flex:1;padding:14px;padding-bottom:84px}
+  h2{margin:4px 0 12px;font-size:18px}
+  .muted{color:var(--muted)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  .btn{appearance:none;border:none;border-radius:10px;padding:11px 16px;font-weight:700;
+    font-size:14px;cursor:pointer;color:#10131a;background:var(--gold);transition:.12s;user-select:none}
+  .btn:active{transform:translateY(1px)}
+  .btn.block{display:block;width:100%}
+  .btn.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .btn.green{background:var(--green)}
+  .btn.red{background:#e2574c;color:#fff}
+  .btn.blue{background:var(--blue);color:#fff}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  /* locations */
+  .loc{position:relative;overflow:hidden}
+  .loc .tier{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+  .loc h3{margin:4px 0 6px;font-size:16px}
+  .loc .fee{font-weight:700;color:var(--gold)}
+  .loc.locked{opacity:.55}
+  .lockmsg{font-size:12px;color:var(--red);margin-top:6px}
+  /* unit peek */
+  .unit-stage{text-align:center}
+  .peek{background:#0d0f13;border:1px solid var(--line);border-radius:12px;height:230px;
+    position:relative;overflow:hidden;margin:8px 0 14px;display:flex;align-items:center;justify-content:center}
+  .peek .door{position:absolute;inset:0;background:
+    repeating-linear-gradient(180deg,#3a4150 0 14px,#2f3540 14px 16px);}
+  .peek .silh{display:flex;gap:16px;align-items:flex-end;filter:brightness(0) blur(1px);opacity:.75;z-index:1}
+  .peek .silh span{font-size:46px}
+  .peek .beam{position:absolute;width:160px;height:300px;z-index:2;pointer-events:none;
+    background:radial-gradient(ellipse at center, rgba(245,197,66,.18), transparent 70%);mix-blend-mode:screen}
+  .peek .label{position:absolute;bottom:8px;left:0;right:0;z-index:3;font-size:12px;color:var(--muted)}
+  /* auction */
+  .bidbox{text-align:center}
+  .curbid{font-size:34px;font-weight:800;color:var(--gold);margin:2px 0}
+  .bidders{display:flex;justify-content:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+  .bidder{font-size:12px;background:#2a2f3a;border:1px solid var(--line);border-radius:20px;padding:4px 10px}
+  .bidder.out{opacity:.35;text-decoration:line-through}
+  .bidder.you{background:#2d3b2d;border-color:#3fcf6b55;color:#bff3c9}
+  .log{height:92px;overflow:auto;background:#0d0f13;border:1px solid var(--line);border-radius:10px;
+    padding:8px 10px;font-size:12.5px;line-height:1.5;margin:10px 0}
+  .log div{opacity:.9}
+  .log .me{color:var(--green)}
+  .log .win{color:var(--gold);font-weight:700}
+  .log .lose{color:var(--red)}
+  /* items */
+  .item{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;position:relative}
+  .item .ic{font-size:34px;line-height:1.1}
+  .item .nm{font-size:12.5px;margin:6px 0 2px;font-weight:600;min-height:30px;display:flex;align-items:center;justify-content:center}
+  .item .vl{font-weight:800;font-size:13px}
+  .item .rar{position:absolute;top:6px;left:6px;font-size:9px;text-transform:uppercase;
+    letter-spacing:.5px;padding:2px 6px;border-radius:6px;font-weight:800;color:#10131a}
+  .r-common{border-color:#5a6373}
+  .r-common .rar{background:#8a93a3}
+  .r-uncommon{border-color:#3fcf6b66}
+  .r-uncommon .rar{background:#3fcf6b}
+  .r-rare{border-color:#4aa3ff66}
+  .r-rare .rar{background:#4aa3ff}
+  .r-epic{border-color:#b56bff66;box-shadow:0 0 12px #b56bff22}
+  .r-epic .rar{background:#b56bff;color:#fff}
+  .r-legendary{border-color:#f5c54288;box-shadow:0 0 16px #f5c54233}
+  .r-legendary .rar{background:var(--gold)}
+  .r-mythic{border-color:#ff5a7a;box-shadow:0 0 20px #ff5a7a44;animation:pulse 1.4s infinite}
+  .r-mythic .rar{background:#ff5a7a;color:#fff}
+  @keyframes pulse{0%,100%{box-shadow:0 0 14px #ff5a7a44}50%{box-shadow:0 0 26px #ff5a7a88}}
+  .pop{animation:pop .4s ease both}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+  /* tabbar */
+  .tabbar{position:fixed;bottom:0;left:0;right:0;z-index:30;display:flex;max-width:760px;margin:0 auto;
+    background:#1b1f27;border-top:1px solid var(--line)}
+  .tabbar button{flex:1;background:none;border:none;color:var(--muted);padding:9px 4px 7px;font-size:11px;
+    cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:600}
+  .tabbar button .ti{font-size:19px}
+  .tabbar button.active{color:var(--gold)}
+  /* summary */
+  .summary{text-align:center}
+  .summary .big{font-size:30px;font-weight:800;margin:6px 0}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  /* misc */
+  .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .kv:last-child{border-bottom:none}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:94px;z-index:50;
+    background:#2a2f3a;border:1px solid var(--line);color:var(--txt);padding:10px 16px;border-radius:24px;
+    font-size:13px;font-weight:600;opacity:0;transition:.25s;pointer-events:none;max-width:90%}
+  .toast.show{opacity:1}
+  .up{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .up:last-child{border:none}
+  .up .nm{font-weight:700;font-size:14px}
+  .up .ds{font-size:12px;color:var(--muted);margin-top:2px}
+  .up .st{font-size:11px;color:var(--gold);margin-top:3px}
+  .empty{text-align:center;color:var(--muted);padding:40px 10px}
+  .selhdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .pill{font-size:12px;background:#2a2f3a;border:1px solid var(--line);border-radius:20px;padding:4px 10px}
+  a.link{color:var(--blue);cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="brand">STORAGE <span class="b">WARS</span></div>
+    <div class="wallet">
+      <span class="lvl" id="lvl">Rep 1</span>
+      <span class="cash" id="cash">$0</span>
+    </div>
+  </div>
+  <main id="view"></main>
+  <div class="tabbar">
+    <button data-tab="auctions" class="active"><span class="ti">🔨</span>Auctions</button>
+    <button data-tab="inventory"><span class="ti">📦</span>Locker</button>
+    <button data-tab="upgrades"><span class="ti">⬆️</span>Upgrades</button>
+    <button data-tab="stats"><span class="ti">📊</span>Stats</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+/* ============ DATA ============ */
+const SAVE_KEY = "storagewars_save_v1";
+
+const RARITY = {
+  common:    {name:"Common",    w:52, mult:[0.3,0.8],  col:"#8a93a3"},
+  uncommon:  {name:"Uncommon",  w:26, mult:[0.7,1.4],  col:"#3fcf6b"},
+  rare:      {name:"Rare",      w:13, mult:[1.3,2.6],  col:"#4aa3ff"},
+  epic:      {name:"Epic",      w:6,  mult:[2.5,5],    col:"#b56bff"},
+  legendary: {name:"Legendary", w:2.3,mult:[6,14],     col:"#f5c542"},
+  mythic:    {name:"Mythic",    w:0.7,mult:[18,45],    col:"#ff5a7a"},
+};
+
+// item pools by category with a base value and an emoji
+const ITEMS = [
+  // junk / common-ish
+  {n:"Old Newspapers",i:"📰",b:4},{n:"Broken Lamp",i:"🪔",b:8},{n:"Cardboard Boxes",i:"📦",b:5},
+  {n:"Used Clothes",i:"👕",b:10},{n:"Garden Tools",i:"🧰",b:22},{n:"Plastic Chairs",i:"🪑",b:15},
+  {n:"Kitchen Pans",i:"🍳",b:18},{n:"Board Games",i:"🎲",b:14},{n:"Paperback Books",i:"📚",b:12},
+  {n:"Bicycle",i:"🚲",b:60},{n:"Microwave",i:"🔌",b:40},{n:"Toolbox",i:"🧰",b:55},
+  {n:"Vinyl Records",i:"💿",b:45},{n:"Vintage Camera",i:"📷",b:120},{n:"Guitar",i:"🎸",b:180},
+  {n:"Flat-screen TV",i:"📺",b:160},{n:"Gaming Console",i:"🎮",b:140},{n:"Laptop",i:"💻",b:220},
+  {n:"Power Tools Set",i:"🪚",b:200},{n:"Antique Clock",i:"🕰️",b:260},{n:"Sewing Machine",i:"🧵",b:95},
+  {n:"Designer Handbag",i:"👜",b:340},{n:"Jewelry Box",i:"💍",b:420},{n:"Fine China Set",i:"🍽️",b:150},
+  {n:"Oil Painting",i:"🖼️",b:380},{n:"Drone",i:"🛸",b:300},{n:"Electric Scooter",i:"🛴",b:280},
+  {n:"Comic Collection",i:"📖",b:500},{n:"Watch Collection",i:"⌚",b:650},{n:"Coin Collection",i:"🪙",b:720},
+  {n:"Vintage Arcade",i:"🕹️",b:900},{n:"Gold Bar",i:"🧈",b:1400},{n:"Rare Painting",i:"🎨",b:1800},
+  {n:"Classic Motorbike",i:"🏍️",b:2600},{n:"Diamond Ring",i:"💎",b:3200},{n:"Signed Memorabilia",i:"✍️",b:2200},
+  {n:"Safe (contents!)",i:"🔐",b:4000},{n:"Sports Car Parts",i:"🏎️",b:5200},{n:"Ancient Artifact",i:"🏺",b:7000},
+];
+
+// locations / tiers. peekCount = how many silhouettes shown, quality = value scaling, rivals
+const LOCATIONS = [
+  {id:0,tier:"Starter",name:"Roadside Lockups",fee:60,minVal:40,maxVal:260,items:[3,6],rivals:2,repReq:0,qual:1.0},
+  {id:1,tier:"Suburban",name:"Sunnyvale Self-Storage",fee:220,minVal:120,maxVal:700,items:[4,7],rivals:3,repReq:2,qual:1.25},
+  {id:2,tier:"City",name:"Downtown Depot",fee:650,minVal:300,maxVal:1600,items:[5,8],rivals:3,repReq:5,qual:1.6},
+  {id:3,tier:"Premium",name:"Harbor Vault Co.",fee:1600,minVal:700,maxVal:3600,items:[5,9],rivals:4,repReq:9,qual:2.1},
+  {id:4,tier:"Elite",name:"Platinum Reserve",fee:4200,minVal:1800,maxVal:8000,items:[6,10],rivals:4,repReq:14,qual:2.8},
+  {id:5,tier:"Legendary",name:"The Black Vault",fee:11000,minVal:4500,maxVal:20000,items:[7,11],rivals:5,repReq:20,qual:3.8},
+];
+
+const UPGRADES = [
+  {id:"flashlight",name:"Better Flashlight",ds:"See one more item silhouette before bidding.",base:400,step:2.4,max:6,
+     fmt:l=>`Peek +${l} item${l!==1?"s":""}`},
+  {id:"appraiser",name:"Appraiser's Eye",ds:"Sell items for more. +6% value per level.",base:600,step:2.2,max:8,
+     fmt:l=>`+${l*6}% sell value`},
+  {id:"negotiator",name:"Smooth Negotiator",ds:"Rivals bid less aggressively. Cheaper wins.",base:750,step:2.3,max:6,
+     fmt:l=>`-${l*7}% rival drive`},
+  {id:"insider",name:"Insider Tips",ds:"Chance a unit is flagged HOT (better loot).",base:900,step:2.5,max:5,
+     fmt:l=>`${l*8}% hot-unit chance`},
+  {id:"hauler",name:"Bigger Truck",ds:"Units can contain more items.",base:1200,step:2.6,max:5,
+     fmt:l=>`+${l} max items`},
+];
+
+/* ============ STATE ============ */
+let S = null;
+function freshState(){
+  return {
+    cash:400, rep:1, repXp:0,
+    unlocked:[0],
+    inv:[],
+    up:{flashlight:0,appraiser:0,negotiator:0,insider:0,hauler:0},
+    stats:{opened:0,spent:0,earned:0,best:0,bestItem:"—",auctionsWon:0,auctionsLost:0,mythics:0},
+    curLoc:0,
+  };
+}
+function load(){
+  try{const r=localStorage.getItem(SAVE_KEY);if(r){S=JSON.parse(r);
+    // backfill
+    const f=freshState();for(const k in f)if(!(k in S))S[k]=f[k];
+    for(const k in f.up)if(!(k in S.up))S.up[k]=0;
+    for(const k in f.stats)if(!(k in S.stats))S.stats[k]=f.stats[k];
+    return;}}catch(e){}
+  S=freshState();
+}
+function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify(S));}catch(e){}}
+
+/* ============ HELPERS ============ */
+const $=s=>document.querySelector(s);
+const view=$("#view");
+function money(n){n=Math.round(n);return (n<0?"-$":"$")+Math.abs(n).toLocaleString();}
+function rnd(a,b){return a+Math.random()*(b-a);}
+function irnd(a,b){return Math.floor(rnd(a,b+1));}
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
+function repNeeded(r){return Math.round(3+r*r*1.4);}
+
+let toastT;
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),1600);}
+
+function rollRarity(hotBonus){
+  let entries=Object.entries(RARITY).map(([k,v])=>[k,v.w]);
+  if(hotBonus){ // shift weight toward better
+    entries=entries.map(([k,w])=>{
+      const boost={common:0.55,uncommon:0.9,rare:1.4,epic:1.8,legendary:2.4,mythic:3}[k];
+      return [k,w*boost];
+    });
+  }
+  const tot=entries.reduce((s,[,w])=>s+w,0);
+  let r=Math.random()*tot;
+  for(const [k,w] of entries){if((r-=w)<=0)return k;}
+  return "common";
+}
+
+function makeItem(loc,hot){
+  const rar=rollRarity(hot);
+  const base=pick(ITEMS);
+  const rm=RARITY[rar].mult;
+  const raw=base.b*loc.qual*rnd(rm[0],rm[1])*rnd(0.85,1.25);
+  const val=Math.max(2,Math.round(raw));
+  return {n:base.n,i:base.i,rar,val};
+}
+
+function genUnit(loc){
+  const hot = Math.random() < S.up.insider*0.08;
+  const nItems = irnd(loc.items[0]+ (hot?1:0), loc.items[1]+S.up.hauler);
+  const items=[];for(let k=0;k<nItems;k++)items.push(makeItem(loc,hot));
+  const total=items.reduce((s,it)=>s+it.val,0);
+  return {loc,hot,items,total,nItems};
+}
+
+/* preview silhouettes the player can see before bidding */
+function previewIcons(unit){
+  const n=Math.min(unit.items.length, 2 + S.up.flashlight);
+  // show the n most valuable as hint (flashlight reveals better)
+  const sorted=[...unit.items].sort((a,b)=>b.val-a.val);
+  return sorted.slice(0,n).map(it=>it.i);
+}
+
+/* ============ RENDER ROUTER ============ */
+let tab="auctions";
+function setTab(t){tab=t;document.querySelectorAll(".tabbar button").forEach(b=>
+  b.classList.toggle("active",b.dataset.tab===t));render();}
+document.querySelectorAll(".tabbar button").forEach(b=>
+  b.addEventListener("click",()=>{ if(auction.active){toast("Finish the auction first!");return;} setTab(b.dataset.tab);}));
+
+function hdr(){
+  $("#cash").textContent=money(S.cash);
+  $("#lvl").textContent="Rep "+S.rep;
+}
+
+function render(){
+  hdr();
+  if(auction.active){renderAuction();return;}
+  if(unpack.active){renderUnpack();return;}
+  if(tab==="auctions")renderAuctions();
+  else if(tab==="inventory")renderInventory();
+  else if(tab==="upgrades")renderUpgrades();
+  else if(tab==="stats")renderStats();
+  save();
+}
+
+/* ---- AUCTIONS (location select) ---- */
+function renderAuctions(){
+  let h=`<h2>Pick a Facility</h2>`;
+  h+=`<div class="grid">`;
+  for(const loc of LOCATIONS){
+    const unlocked=S.unlocked.includes(loc.id);
+    const canRep=S.rep>=loc.repReq;
+    h+=`<div class="card loc ${unlocked?"":"locked"}">
+      <div class="tier">${loc.tier}</div>
+      <h3>${loc.name}</h3>
+      <div class="muted" style="font-size:12px">Buy-in <span class="fee">${money(loc.fee)}</span></div>
+      <div class="muted" style="font-size:12px;margin:4px 0 8px">${loc.rivals} rival bidders</div>`;
+    if(unlocked){
+      h+=`<button class="btn block" data-start="${loc.id}">Find a Unit</button>`;
+    }else if(canRep){
+      h+=`<button class="btn green block" data-unlock="${loc.id}">Unlock · ${money(loc.fee*3)}</button>`;
+    }else{
+      h+=`<div class="lockmsg">🔒 Reach Rep ${loc.repReq} to unlock</div>`;
+    }
+    h+=`</div>`;
+  }
+  h+=`</div>`;
+  view.innerHTML=h;
+  view.querySelectorAll("[data-start]").forEach(b=>b.onclick=()=>startAuction(+b.dataset.start));
+  view.querySelectorAll("[data-unlock]").forEach(b=>b.onclick=()=>{
+    const id=+b.dataset.unlock;const loc=LOCATIONS[id];const cost=loc.fee*3;
+    if(S.cash<cost){toast("Not enough cash to unlock.");return;}
+    S.cash-=cost;S.unlocked.push(id);toast("Unlocked "+loc.name+"!");render();
+  });
+}
+
+/* ============ AUCTION ENGINE ============ */
+const auction={active:false,unit:null,loc:null,bid:0,bidders:[],youIn:true,logLines:[],over:false,won:false};
+
+const RIVAL_NAMES=["Dave","Brandi","Darrell","Jarrod","Ivy","Rico","Mack","Nina","Omar","Tess","Vince","Lola"];
+
+function startAuction(locId){
+  const loc=LOCATIONS[locId];
+  if(S.cash<loc.fee){toast("You need "+money(loc.fee)+" to bid here.");return;}
+  S.curLoc=locId;
+  const unit=genUnit(loc);
+  auction.active=true;auction.over=false;auction.won=false;
+  auction.unit=unit;auction.loc=loc;auction.youIn=true;
+  auction.bid=Math.round(loc.fee*rnd(0.4,0.7));
+  auction.logLines=[];
+  // rivals each have a secret max budget based on true value (they can't see it perfectly)
+  const names=[...RIVAL_NAMES].sort(()=>Math.random()-0.5).slice(0,loc.rivals);
+  const negot=1-S.up.negotiator*0.07;
+  auction.bidders=names.map(nm=>{
+    const guess=unit.total*rnd(0.55,1.05)*negot;
+    return {nm,max:Math.max(loc.fee*0.8,guess),out:false};
+  });
+  alog(`🔨 Auction open at ${loc.name}.`);
+  alog(`Opening bid ${money(auction.bid)}.`);
+  render();
+}
+
+function alog(t,cls){auction.logLines.push({t,cls:cls||""});}
+
+function renderAuction(){
+  const u=auction.unit;
+  const peek=previewIcons(u);
+  let h=`<div class="selhdr"><h2 style="margin:0">${auction.loc.name}</h2>
+    <span class="pill">${auction.loc.tier}</span></div>`;
+  h+=`<div class="card unit-stage">`;
+  h+=`<div class="muted" style="font-size:12px">Unit contents (peek: ${peek.length} of ~${u.nItems})</div>`;
+  h+=`<div class="peek"><div class="door"></div>
+        <div class="beam" id="beam"></div>
+        <div class="silh">${peek.map(i=>`<span>${i}</span>`).join("")}</div>
+        <div class="label">${u.hot?'🔥 <b style="color:#ff5a7a">HOT UNIT</b> — tip says it is loaded':'Locked unit · bid on what you can see'}</div>
+      </div>`;
+  if(!auction.over){
+    h+=`<div class="bidbox">
+      <div class="muted" style="font-size:12px">Current Bid</div>
+      <div class="curbid">${money(auction.bid)}</div>
+      <div class="bidders">${auction.bidders.map(b=>`<span class="bidder ${b.out?'out':''}">${b.nm}</span>`).join("")}
+        <span class="bidder you ${auction.youIn?'':'out'}">You</span></div>`;
+    const nextBid=nextBidAmount();
+    h+=`<div class="row" style="justify-content:center">
+         <button class="btn green" id="bidBtn">Raise to ${money(nextBid)}</button>
+         <button class="btn red" id="passBtn">Pass</button>
+       </div>`;
+    h+=`</div>`;
+  }
+  // log
+  h+=`<div class="log" id="log">${auction.logLines.map(l=>`<div class="${l.cls}">${l.t}</div>`).join("")}</div>`;
+  if(auction.over){
+    if(auction.won){
+      h+=`<button class="btn blue block" id="openBtn">🔓 Open Your Unit</button>`;
+    }else{
+      h+=`<button class="btn sec block" id="leaveBtn">Back to Auctions</button>`;
+    }
+  }
+  h+=`</div>`;
+  view.innerHTML=h;
+  const beam=$("#beam");if(beam){let x=0;setInterval(()=>{x=(x+1)%100;beam.style.left=(10+Math.sin(x/15)*40)+"%";},40);}
+  const lg=$("#log");if(lg)lg.scrollTop=lg.scrollHeight;
+  if($("#bidBtn"))$("#bidBtn").onclick=playerBid;
+  if($("#passBtn"))$("#passBtn").onclick=playerPass;
+  if($("#openBtn"))$("#openBtn").onclick=startUnpack;
+  if($("#leaveBtn"))$("#leaveBtn").onclick=()=>{auction.active=false;render();};
+}
+
+function nextBidAmount(){
+  const inc=Math.max(10,Math.round(auction.bid*rnd(0.08,0.15)/5)*5);
+  return auction.bid+inc;
+}
+
+function playerBid(){
+  const amt=nextBidAmount();
+  if(S.cash<amt){toast("You can't afford that bid.");return;}
+  auction.bid=amt;auction.youIn=true;
+  alog(`You bid ${money(amt)}.`,"me");
+  render();
+  setTimeout(rivalsRespond,420);
+}
+function playerPass(){
+  auction.youIn=false;
+  alog(`You pass.`,"lose");
+  // whoever is current highest rival (still in) wins; if none, re-offer
+  render();
+  setTimeout(()=>rivalsRespond(true),420);
+}
+
+function rivalsRespond(playerPassed){
+  // each active rival decides to raise if current bid < their max
+  const active=auction.bidders.filter(b=>!b.out);
+  let someoneRaised=false;
+  for(const b of active){
+    const willing=auction.bid < b.max*rnd(0.9,1.0);
+    const eager=Math.random()< (willing?0.7:0.08);
+    if(willing && eager){
+      const amt=nextBidAmount();
+      auction.bid=amt;
+      alog(`${b.nm} bids ${money(amt)}.`);
+      auction.youIn=false; // someone outbid everyone
+      someoneRaised=true;
+      // mark others as momentarily not-highest (visual only); continue loop lets chain
+      break;
+    }
+  }
+  // rivals drop out if bid exceeds their max
+  for(const b of auction.bidders){
+    if(!b.out && auction.bid > b.max){b.out=true;alog(`${b.nm} drops out.`);}
+  }
+  const stillIn=auction.bidders.filter(b=>!b.out);
+  render();
+
+  // resolve end conditions
+  if(playerPassed && !auction.youIn){
+    if(stillIn.length<=1){
+      // auction ends, a rival wins (or if none, lowest wins current)
+      const winner=stillIn[0]||pick(auction.bidders);
+      endAuction(false,winner.nm);
+      return;
+    }else{
+      // keep rivals bidding among themselves quickly
+      setTimeout(()=>rivalsRespond(true),500);
+      return;
+    }
+  }
+
+  if(someoneRaised){
+    // player must respond; if player can't afford next, auto-check
+    return;
+  }else{
+    // nobody raised this round
+    if(auction.youIn){
+      // player holds the top bid -> player wins
+      endAuction(true);
+    }else{
+      // player passed earlier and rivals settled
+      if(stillIn.length>=1){
+        const winner=stillIn.sort((a,b)=>b.max-a.max)[0];
+        endAuction(false,winner.nm);
+      }else{
+        endAuction(true);
+      }
+    }
+  }
+}
+
+function endAuction(playerWon,rivalName){
+  auction.over=true;auction.won=playerWon;
+  if(playerWon){
+    S.cash-=auction.bid;
+    S.stats.spent+=auction.bid;
+    S.stats.auctionsWon++;
+    alog(`🔨 SOLD to YOU for ${money(auction.bid)}!`,"win");
+    toast("You won the unit!");
+  }else{
+    S.stats.auctionsLost++;
+    alog(`🔨 SOLD to ${rivalName} for ${money(auction.bid)}.`,"lose");
+    toast("Outbid by "+rivalName);
+  }
+  save();render();
+}
+
+/* ============ UNPACK ============ */
+const unpack={active:false,unit:null,revealed:0};
+function startUnpack(){
+  auction.active=false;
+  unpack.active=true;unpack.unit=auction.unit;unpack.revealed=0;
+  S.stats.opened++;
+  render();
+  // auto reveal one by one
+  revealNext();
+}
+function revealNext(){
+  if(!unpack.active)return;
+  if(unpack.revealed<unpack.unit.items.length){
+    unpack.revealed++;
+    const it=unpack.unit.items[unpack.revealed-1];
+    if(it.rar==="mythic")S.stats.mythics++;
+    if(it.val>S.stats.best){S.stats.best=it.val;S.stats.bestItem=it.n;}
+    render();
+    const delay=unpack.unit.items[unpack.revealed-1].val>800?720:380;
+    setTimeout(revealNext,delay);
+  }
+}
+function renderUnpack(){
+  const u=unpack.unit;
+  const shown=u.items.slice(0,unpack.revealed);
+  const total=u.items.reduce((s,it)=>s+it.val,0);
+  const done=unpack.revealed>=u.items.length;
+  let h=`<div class="selhdr"><h2 style="margin:0">Unpacking…</h2>
+    <span class="pill">${unpack.revealed}/${u.items.length}</span></div>`;
+  h+=`<div class="grid">`;
+  for(let k=0;k<shown.length;k++){
+    const it=shown[k];
+    h+=`<div class="item r-${it.rar} ${k===unpack.revealed-1?'pop':''}">
+        <div class="rar">${RARITY[it.rar].name}</div>
+        <div class="ic">${it.i}</div>
+        <div class="nm">${it.n}</div>
+        <div class="vl" style="color:${RARITY[it.rar].col}">${money(it.val)}</div>
+      </div>`;
+  }
+  h+=`</div>`;
+  if(done){
+    const profit=total-auction.bid;
+    h+=`<div class="card summary" style="margin-top:14px">
+      <div class="muted">Haul value</div>
+      <div class="big" style="color:var(--gold)">${money(total)}</div>
+      <div class="kv"><span>Paid for unit</span><span>${money(auction.bid)}</span></div>
+      <div class="kv"><span>Profit / Loss</span><span class="${profit>=0?'pos':'neg'}">${money(profit)}</span></div>
+      <div class="row" style="margin-top:12px;justify-content:center">
+        <button class="btn green" id="sellAll">💰 Sell Everything</button>
+        <button class="btn sec" id="keepAll">📦 Keep in Locker</button>
+      </div>
+    </div>`;
+  }
+  view.innerHTML=h;
+  if($("#sellAll"))$("#sellAll").onclick=()=>finishUnpack(true);
+  if($("#keepAll"))$("#keepAll").onclick=()=>finishUnpack(false);
+}
+function sellMult(){return 1+S.up.appraiser*0.06;}
+function finishUnpack(sellAll){
+  const u=unpack.unit;
+  if(sellAll){
+    let got=0;for(const it of u.items)got+=Math.round(it.val*sellMult());
+    S.cash+=got;S.stats.earned+=got;
+    gainRep(u.items);
+    toast("Sold haul for "+money(got));
+  }else{
+    for(const it of u.items)S.inv.push(it);
+    gainRep(u.items);
+    toast("Stored "+u.items.length+" items.");
+  }
+  unpack.active=false;auction.active=false;
+  save();setTab("auctions");
+}
+function gainRep(items){
+  // rep from rare finds
+  let xp=0;for(const it of items){xp+={common:1,uncommon:2,rare:4,epic:8,legendary:16,mythic:30}[it.rar];}
+  S.repXp+=xp;
+  while(S.repXp>=repNeeded(S.rep)){S.repXp-=repNeeded(S.rep);S.rep++;toast("⭐ Rep up! Now Rep "+S.rep);}
+}
+
+/* ---- INVENTORY ---- */
+function renderInventory(){
+  let h=`<div class="selhdr"><h2 style="margin:0">Your Locker</h2>`;
+  const worth=S.inv.reduce((s,it)=>s+Math.round(it.val*sellMult()),0);
+  h+=`<span class="pill">${S.inv.length} items · ${money(worth)}</span></div>`;
+  if(S.inv.length===0){h+=`<div class="empty">📦<br>Empty. Win and open a unit, then keep items here to sell later.</div>`;view.innerHTML=h;return;}
+  h+=`<button class="btn green block" id="sellAllInv" style="margin-bottom:12px">💰 Sell All · ${money(worth)}</button>`;
+  h+=`<div class="grid">`;
+  // sort best first
+  const sorted=S.inv.map((it,idx)=>({it,idx})).sort((a,b)=>b.it.val-a.it.val);
+  for(const {it,idx} of sorted){
+    h+=`<div class="item r-${it.rar}">
+        <div class="rar">${RARITY[it.rar].name}</div>
+        <div class="ic">${it.i}</div>
+        <div class="nm">${it.n}</div>
+        <div class="vl" style="color:${RARITY[it.rar].col}">${money(Math.round(it.val*sellMult()))}</div>
+        <button class="btn green" style="margin-top:8px;padding:6px 10px;font-size:12px" data-sell="${idx}">Sell</button>
+      </div>`;
+  }
+  h+=`</div>`;
+  view.innerHTML=h;
+  $("#sellAllInv").onclick=()=>{
+    let got=0;for(const it of S.inv)got+=Math.round(it.val*sellMult());
+    S.cash+=got;S.stats.earned+=got;S.inv=[];toast("Sold all for "+money(got));render();
+  };
+  view.querySelectorAll("[data-sell]").forEach(b=>b.onclick=()=>{
+    const idx=+b.dataset.sell;const it=S.inv[idx];const got=Math.round(it.val*sellMult());
+    S.cash+=got;S.stats.earned+=got;S.inv.splice(idx,1);toast("Sold "+it.n+" for "+money(got));render();
+  });
+}
+
+/* ---- UPGRADES ---- */
+function upCost(u){return Math.round(u.base*Math.pow(u.step,S.up[u.id]));}
+function renderUpgrades(){
+  let h=`<h2>Upgrades</h2><div class="card">`;
+  for(const u of UPGRADES){
+    const lvl=S.up[u.id];const maxed=lvl>=u.max;const cost=upCost(u);
+    h+=`<div class="up">
+      <div>
+        <div class="nm">${u.name} <span class="muted" style="font-weight:600;font-size:12px">· Lv ${lvl}/${u.max}</span></div>
+        <div class="ds">${u.ds}</div>
+        <div class="st">${u.fmt(lvl)}</div>
+      </div>
+      <div>${maxed?'<span class="pill">MAX</span>':
+        `<button class="btn" data-up="${u.id}">${money(cost)}</button>`}</div>
+    </div>`;
+  }
+  h+=`</div>`;
+  view.innerHTML=h;
+  view.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>{
+    const u=UPGRADES.find(x=>x.id===b.dataset.up);const cost=upCost(u);
+    if(S.cash<cost){toast("Not enough cash.");return;}
+    S.cash-=cost;S.up[u.id]++;toast(u.name+" upgraded!");render();
+  });
+}
+
+/* ---- STATS ---- */
+function renderStats(){
+  const st=S.stats;
+  const net=st.earned-st.spent;
+  let h=`<h2>Stats</h2><div class="card">
+    <div class="kv"><span>Cash on hand</span><span class="cash" style="color:var(--green)">${money(S.cash)}</span></div>
+    <div class="kv"><span>Reputation</span><span>Rep ${S.rep} (${S.repXp}/${repNeeded(S.rep)} xp)</span></div>
+    <div class="kv"><span>Units opened</span><span>${st.opened}</span></div>
+    <div class="kv"><span>Auctions won / lost</span><span>${st.auctionsWon} / ${st.auctionsLost}</span></div>
+    <div class="kv"><span>Total spent on units</span><span>${money(st.spent)}</span></div>
+    <div class="kv"><span>Total earned selling</span><span>${money(st.earned)}</span></div>
+    <div class="kv"><span>Net profit</span><span class="${net>=0?'pos':'neg'}">${money(net)}</span></div>
+    <div class="kv"><span>Best single find</span><span>${st.bestItem} · ${money(st.best)}</span></div>
+    <div class="kv"><span>Mythic items found</span><span>${st.mythics} 🔥</span></div>
+    <div class="kv"><span>Facilities unlocked</span><span>${S.unlocked.length}/${LOCATIONS.length}</span></div>
+  </div>`;
+  h+=`<button class="btn red block" id="reset">Reset Game</button>`;
+  view.innerHTML=h;
+  $("#reset").onclick=()=>{
+    if(confirm("Erase all progress and start over?")){S=freshState();save();setTab("auctions");}
+  };
+}
+
+/* ============ BOOT ============ */
+load();render();
+</script>
+</body>
+</html>

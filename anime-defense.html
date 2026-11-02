@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anime Defense — Full Game</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: radial-gradient(ellipse at top, #1a1a3a, #08080f);
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    color: #e6e6ff;
+    overflow: hidden;
+    user-select: none;
+  }
+  #app { display: flex; flex-direction: column; height: 100vh; }
+  #topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px;
+    background: linear-gradient(180deg, #1a1a3a, #12122a);
+    border-bottom: 2px solid #4a3f6b;
+  }
+  #topbar .brand { font-size: 1.1rem; font-weight: 800; letter-spacing: 0.08em; color: #ffe680; }
+  #topbar .brand small { color: #8a8ab5; font-size: 0.65rem; margin-left: 6px; font-weight: 400; letter-spacing: 0.14em; }
+  .cur-bar { display: flex; gap: 8px; }
+  .cur {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    background: rgba(0,0,0,0.4);
+    border: 1px solid #3a3a5c;
+    border-radius: 20px;
+    font-size: 0.82rem;
+  }
+  .cur b { color: #ffe680; font-weight: 700; }
+  .cur.gems b { color: #a575e0; }
+  .cur.stars b { color: #60d0f0; }
+
+  /* Navigation */
+  #nav {
+    display: flex; padding: 0 12px; background: rgba(10,10,25,0.8);
+    border-bottom: 1px solid #2a2a45;
+  }
+  .nav-btn {
+    padding: 10px 20px;
+    background: none; border: none;
+    color: #8a8ab5;
+    cursor: pointer;
+    font-weight: 700; font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    border-bottom: 3px solid transparent;
+    transition: all 0.15s;
+  }
+  .nav-btn:hover { color: #e6e6ff; }
+  .nav-btn.active { color: #ffe680; border-bottom-color: #ffe680; }
+  #nav .spacer { flex: 1; }
+
+  /* Views */
+  #view { flex: 1; overflow-y: auto; padding: 18px; position: relative; }
+  .view-page { display: none; }
+  .view-page.active { display: block; }
+
+  h2 { font-size: 1.25rem; color: #ffe680; margin-bottom: 12px; letter-spacing: 0.05em; }
+  h3 { font-size: 1rem; color: #cfe0b8; margin-bottom: 8px; }
+
+  /* Buttons */
+  .btn {
+    background: linear-gradient(180deg, #6b3fa5, #4a2570);
+    color: #fff2ec;
+    border: 1px solid #a575e0;
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700; font-size: 0.85rem;
+    letter-spacing: 0.06em;
+    transition: transform 0.1s;
+  }
+  .btn:hover:not(:disabled) { transform: scale(1.03); box-shadow: 0 0 10px rgba(165,117,224,0.4); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.gold { background: linear-gradient(180deg, #c19040, #8a5f20); border-color: #f5c060; }
+  .btn.green { background: linear-gradient(180deg, #3a8040, #245020); border-color: #5fbf5a; }
+  .btn.red { background: linear-gradient(180deg, #a53040, #701825); border-color: #c74a3a; }
+  .btn.big { padding: 14px 32px; font-size: 1rem; }
+
+  /* Home */
+  .home-hero {
+    background: linear-gradient(135deg, #2a1f4a, #1a1330);
+    border: 2px solid #4a3f6b;
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 16px;
+  }
+  .home-hero h1 { font-size: 1.8rem; color: #ffe680; margin-bottom: 8px; }
+  .home-hero p { color: #cfe0b8; line-height: 1.6; margin-bottom: 12px; font-size: 0.9rem; }
+  .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .home-card {
+    background: linear-gradient(160deg, #1a1a3a, #12122a);
+    border: 1px solid #3a3a5c;
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .home-card .k { font-size: 0.7rem; color: #8a8ab5; letter-spacing: 0.12em; }
+  .home-card .v { font-size: 1.4rem; color: #ffe680; font-weight: 700; margin-top: 4px; }
+  .home-card .s { font-size: 0.72rem; color: #a5a5d5; margin-top: 2px; }
+
+  /* Daily reward */
+  .daily-strip {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+    margin-top: 10px;
+  }
+  .daily-day {
+    background: #12122a;
+    border: 1px solid #3a3a5c;
+    padding: 8px 4px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 0.72rem;
+  }
+  .daily-day.claimed { background: #244020; border-color: #5fbf5a; opacity: 0.6; }
+  .daily-day.today { background: #3a2f5f; border-color: #ffe680; box-shadow: 0 0 10px rgba(255,230,128,0.4); }
+  .daily-day .amount { color: #ffe680; font-weight: 700; }
+
+  /* Summon */
+  .banner {
+    background: linear-gradient(135deg, #4a1a70, #2a0e40);
+    border: 2px solid #a575e0;
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 14px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .banner h2 { color: #ffe680; margin-bottom: 6px; }
+  .banner .sub { color: #cfe0b8; font-size: 0.85rem; margin-bottom: 14px; }
+  .banner .pulls { display: flex; gap: 12px; justify-content: center; margin-top: 8px; }
+  .banner-btn {
+    background: linear-gradient(180deg, #f5c060, #c19040);
+    color: #2a1f00;
+    border: 2px solid #ffe680;
+    padding: 12px 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 800; font-size: 0.9rem;
+    letter-spacing: 0.06em;
+  }
+  .banner-btn:hover:not(:disabled) { box-shadow: 0 0 16px rgba(255,230,128,0.6); }
+  .banner-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .banner-btn.big { padding: 14px 34px; font-size: 1rem; background: linear-gradient(180deg, #ff8060, #c74a3a); border-color: #ffaa88; color: #fff2ec; }
+
+  .odds-table {
+    background: rgba(0,0,0,0.35); border-radius: 8px; padding: 10px 14px;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+    margin-top: 10px; font-size: 0.72rem;
+  }
+  .odds-table div { text-align: center; }
+  .odds-table b { display: block; font-size: 0.9rem; margin-bottom: 2px; }
+
+  /* Collection */
+  .col-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .unit-tile {
+    background: linear-gradient(160deg, #1a1a3a, #12122a);
+    border: 2px solid #3a3a5c;
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.12s;
+  }
+  .unit-tile:hover { transform: translateY(-2px); border-color: #8a7ac7; }
+  .unit-tile .avatar {
+    width: 100%; aspect-ratio: 1;
+    background: radial-gradient(circle at 50% 40%, currentColor, transparent 70%);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.2rem; font-weight: 800;
+    margin-bottom: 6px;
+    position: relative;
+  }
+  .unit-tile .name { font-size: 0.8rem; font-weight: 700; text-align: center; color: #e6e6ff; }
+  .unit-tile .rar { font-size: 0.62rem; text-align: center; letter-spacing: 0.1em; margin-top: 2px; font-weight: 700; }
+  .unit-tile .count {
+    position: absolute; top: 4px; right: 4px;
+    background: rgba(0,0,0,0.75); color: #ffe680;
+    padding: 2px 6px; border-radius: 4px;
+    font-size: 0.7rem; font-weight: 700;
+  }
+  .unit-tile .level {
+    position: absolute; top: 4px; left: 4px;
+    background: linear-gradient(180deg, #f5c060, #c19040);
+    color: #2a1f00;
+    padding: 2px 6px; border-radius: 4px;
+    font-size: 0.68rem; font-weight: 800;
+  }
+  .unit-tile.locked { opacity: 0.35; filter: grayscale(0.8); cursor: default; }
+
+  /* Play stage select */
+  .stage-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .stage-tile {
+    background: linear-gradient(135deg, #2a1f4a, #1a1330);
+    border: 2px solid #4a3f6b;
+    border-radius: 10px;
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .stage-tile:hover:not(.locked) { border-color: #ffe680; transform: translateY(-2px); }
+  .stage-tile.cleared { border-color: #5fbf5a; }
+  .stage-tile.locked { opacity: 0.4; cursor: not-allowed; }
+  .stage-tile h3 { color: #ffe680; margin-bottom: 4px; }
+  .stage-tile p { font-size: 0.75rem; color: #a5a5d5; line-height: 1.5; margin-bottom: 6px; }
+  .stage-tile .badge { position: absolute; top: 8px; right: 10px; font-size: 0.65rem; color: #cfe0b8; }
+
+  /* Combat view */
+  #combatView {
+    display: none; position: fixed; inset: 0;
+    background: radial-gradient(ellipse at center, #1a1a3a 0%, #08080f 100%);
+    z-index: 50;
+    flex-direction: column;
+  }
+  #combatView.show { display: flex; }
+  #combatBar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px;
+    background: linear-gradient(180deg, #1a1a3a, #12122a);
+    border-bottom: 2px solid #4a3f6b;
+    font-size: 0.85rem;
+  }
+  #combatBar .stat {
+    display: inline-flex; gap: 6px;
+    padding: 4px 10px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 6px;
+    margin-right: 6px;
+  }
+  #combatBar .stat b { color: #ffe680; font-weight: 700; }
+  #combatBar .stat.lives b { color: #ff8a8a; }
+  #combatBar .stat.wave b { color: #8fbf5a; }
+  #combatMain { flex: 1; display: flex; overflow: hidden; }
+  #shop {
+    width: 200px;
+    background: rgba(10,10,25,0.85);
+    padding: 10px;
+    border-right: 2px solid #4a3f6b;
+    overflow-y: auto;
+  }
+  .shop-card {
+    background: linear-gradient(160deg, #232345, #16162e);
+    border: 2px solid #3a3a5c;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.1s;
+  }
+  .shop-card:hover:not(.locked) { border-color: #8a7ac7; }
+  .shop-card.selected { border-color: #ffe680; box-shadow: 0 0 8px rgba(255,230,128,0.4); }
+  .shop-card.locked { opacity: 0.5; cursor: not-allowed; }
+  .shop-card .name { font-size: 0.78rem; font-weight: 700; }
+  .shop-card .rar { font-size: 0.6rem; letter-spacing: 0.1em; }
+  .shop-card .cost { position: absolute; top: 6px; right: 8px; color: #ffe680; font-weight: 700; font-size: 0.75rem; }
+  .shop-card .trait { font-size: 0.62rem; color: #a5a5d5; margin-top: 2px; }
+  #canvasWrap {
+    flex: 1;
+    display: flex; justify-content: center; align-items: center;
+    background: radial-gradient(ellipse at center, #1a1a3a 0%, #08080f 100%);
+    position: relative;
+  }
+  canvas { display: block; background: #0d0d1a; border: 2px solid #4a3f6b; border-radius: 4px; max-width: 100%; max-height: 100%; }
+  #details {
+    width: 220px;
+    background: rgba(10,10,25,0.85);
+    padding: 12px;
+    border-left: 2px solid #4a3f6b;
+    overflow-y: auto;
+    display: none;
+  }
+  #details.show { display: block; }
+  #details h3 { color: #ffe680; font-size: 0.95rem; margin-bottom: 4px; }
+  #details .rar { font-size: 0.7rem; letter-spacing: 0.1em; margin-bottom: 8px; }
+  #details p { font-size: 0.75rem; color: #a5a5d5; line-height: 1.5; margin-bottom: 4px; }
+  #details p b { color: #cfe0b8; }
+  #details button {
+    display: block; width: 100%;
+    margin-top: 6px;
+    padding: 8px;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    border-radius: 6px;
+    cursor: pointer;
+    background: linear-gradient(180deg, #3a6b30, #244f18);
+    color: #cfe0b8;
+    border: 1px solid #5f8a3a;
+  }
+  #details button:hover:not(:disabled) { background: linear-gradient(180deg, #4a8040, #2a5f22); }
+  #details button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #details button.spin { background: linear-gradient(180deg, #a575e0, #6b3fa5); border-color: #c495ff; color: #fff2ec; }
+  #details button.sell { background: linear-gradient(180deg, #6b3030, #4a1818); border-color: #c74a3a; }
+
+  /* Toast + Hint + Modal */
+  #toast {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.85); color: #ffe680;
+    padding: 10px 22px; border-radius: 6px; font-size: 0.9rem; font-weight: 700;
+    pointer-events: none; opacity: 0; transition: opacity 0.2s;
+    z-index: 100;
+  }
+  #toast.show { opacity: 1; }
+  #modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.88);
+    display: none; align-items: center; justify-content: center;
+    z-index: 200;
+    padding: 20px;
+  }
+  #modal.show { display: flex; }
+  .modal-body {
+    background: linear-gradient(135deg, #2a1f4a, #1a1330);
+    border: 2px solid #a575e0;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 640px;
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    text-align: center;
+  }
+  .modal-body h2 { margin-bottom: 12px; }
+
+  /* Code input */
+  #codeInput {
+    background: #12122a; color: #e6e6ff;
+    border: 2px solid #3a3a5c; border-radius: 6px;
+    padding: 10px 12px; font-size: 0.9rem;
+    width: 100%; max-width: 320px;
+    font-family: monospace;
+    letter-spacing: 0.06em;
+  }
+  #codeInput:focus { outline: none; border-color: #ffe680; }
+  .code-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px; margin: 4px 0;
+    background: rgba(0,0,0,0.35); border-radius: 6px;
+    font-size: 0.8rem; font-family: monospace;
+  }
+  .code-item.used { opacity: 0.4; text-decoration: line-through; }
+  .code-item .r { color: #8fbf5a; font-family: sans-serif; }
+
+  /* Summon reveal cards */
+  .pull-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 14px 0; }
+  .pull-card {
+    background: linear-gradient(160deg, #1a1a3a, #12122a);
+    border: 2px solid #3a3a5c;
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+    position: relative;
+    animation: pop 0.3s ease-out;
+  }
+  @keyframes pop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .pull-card .avatar {
+    aspect-ratio: 1;
+    background: radial-gradient(circle, currentColor, transparent 70%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; font-weight: 800;
+    border-radius: 6px;
+    margin-bottom: 4px;
+  }
+  .pull-card .n { font-size: 0.7rem; font-weight: 700; }
+  .pull-card .r { font-size: 0.6rem; letter-spacing: 0.1em; font-weight: 700; margin-top: 2px; }
+  .pull-card .new-tag {
+    position: absolute; top: 4px; right: 4px;
+    background: #ffe680; color: #2a1f00;
+    font-size: 0.55rem; font-weight: 800;
+    padding: 1px 5px; border-radius: 3px;
+  }
+
+  /* Utility */
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .divider { height: 1px; background: #2a2a45; margin: 12px 0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div class="brand">ANIME DEFENSE <small>lifestyle edition</small></div>
+    <div class="cur-bar">
+      <span class="cur"> Gold <b id="hGold">500</b></span>
+      <span class="cur gems"> Gems <b id="hGems">1000</b></span>
+      <span class="cur stars"> Shards <b id="hShards">0</b></span>
+    </div>
+  </div>
+  <div id="nav">
+    <button class="nav-btn active" data-page="home">HOME</button>
+    <button class="nav-btn" data-page="summon">SUMMON</button>
+    <button class="nav-btn" data-page="collection">COLLECTION</button>
+    <button class="nav-btn" data-page="play">PLAY</button>
+    <button class="nav-btn" data-page="codes">CODES</button>
+    <div class="spacer"></div>
+    <button class="nav-btn" id="wipeBtn" style="color:#c74a3a;">WIPE</button>
+  </div>
+  <div id="view">
+    <div class="view-page active" id="page-home"></div>
+    <div class="view-page" id="page-summon"></div>
+    <div class="view-page" id="page-collection"></div>
+    <div class="view-page" id="page-play"></div>
+    <div class="view-page" id="page-codes"></div>
+  </div>
+</div>
+
+<!-- Combat overlay -->
+<div id="combatView">
+  <div id="combatBar">
+    <div>
+      <span class="stat"> Gold <b id="cGold">0</b></span>
+      <span class="stat lives"> Lives <b id="cLives">20</b></span>
+      <span class="stat wave"> Wave <b id="cWave">0</b>/<span id="cMaxWave">20</span></span>
+      <span class="stat"> Kills <b id="cKills">0</b></span>
+    </div>
+    <div>
+      <button class="btn" id="speedBtn">SPEED 1x</button>
+      <button class="btn gold" id="startBtn">START WAVE</button>
+      <button class="btn red" id="quitBtn">QUIT</button>
+    </div>
+  </div>
+  <div id="combatMain">
+    <div id="shop">
+      <div style="font-size:0.7rem;color:#8a8ab5;letter-spacing:0.12em;margin-bottom:8px;font-weight:700;">DEPLOY UNITS</div>
+      <div id="shopList"></div>
+    </div>
+    <div id="canvasWrap">
+      <canvas id="game" width="720" height="560"></canvas>
+    </div>
+    <div id="details"></div>
+  </div>
+</div>
+
+<!-- Toast + Modal -->
+<div id="toast"></div>
+<div id="modal"><div class="modal-body" id="modalBody"></div></div>
+
+<script>
+(() => {
+"use strict";
+
+// ============================================================= RARITIES + UNITS
+const RARITIES = {
+  common:    { color: "#9CA3AF", label: "COMMON",    order: 1 },
+  rare:      { color: "#3B82F6", label: "RARE",      order: 2 },
+  epic:      { color: "#A855F7", label: "EPIC",      order: 3 },
+  legendary: { color: "#F59E0B", label: "LEGENDARY", order: 4 },
+  mythic:    { color: "#EC4899", label: "MYTHIC",    order: 5 },
+  secret:    { color: "#ff2280", label: "SECRET",    order: 6 },
+};
+
+const UNITS = {
+  sword: {
+    name: "Sword Hero", rarity: "common", cost: 100, initial: 3,
+    range: 60, dmg: 18, spa: 700, splash: 0, projectile: false,
+    color: "#c4a24a", letter: "S",
+    desc: "Melee slash. Cheap and reliable.",
+    upgrade: [{ dmg: 32, range: 65, spa: 620 }, { dmg: 60, range: 70, spa: 540 }],
+  },
+  bow: {
+    name: "Bow Master", rarity: "rare", cost: 200,
+    range: 130, dmg: 22, spa: 900, splash: 0, projectile: true,
+    color: "#5fbf5a", letter: "B",
+    desc: "Ranged single-target. Long reach.",
+    upgrade: [{ dmg: 40, range: 145, spa: 800 }, { dmg: 75, range: 160, spa: 700 }],
+  },
+  mage: {
+    name: "Elf Mage", rarity: "epic", cost: 450,
+    range: 110, dmg: 35, spa: 1200, splash: 45, projectile: true,
+    color: "#a575e0", letter: "M",
+    desc: "Magic AoE splash. Clears clusters.",
+    upgrade: [{ dmg: 60, range: 120, spa: 1050, splash: 55 }, { dmg: 110, range: 135, spa: 900, splash: 70 }],
+  },
+  ice: {
+    name: "Ice Queen", rarity: "epic", cost: 300,
+    range: 100, dmg: 10, spa: 1000, splash: 60, projectile: true, slow: 0.4, slowDur: 1500,
+    color: "#60d0f0", letter: "I",
+    desc: "Slows enemies in AoE. Low damage.",
+    upgrade: [{ dmg: 18, range: 115, slow: 0.55, slowDur: 1800 }, { dmg: 30, range: 130, slow: 0.7, slowDur: 2200 }],
+  },
+  reaper: {
+    name: "Reaper", rarity: "legendary", cost: 700,
+    range: 220, dmg: 120, spa: 2000, splash: 0, projectile: true,
+    color: "#f57070", letter: "R",
+    desc: "Long-range sniper. Boss killer.",
+    upgrade: [{ dmg: 220, range: 240, spa: 1750 }, { dmg: 420, range: 260, spa: 1500 }],
+  },
+  dark: {
+    name: "Dark Mage", rarity: "mythic", cost: 1200,
+    range: 120, dmg: 25, spa: 400, splash: 55, projectile: false,
+    color: "#e040a8", letter: "D",
+    desc: "Lightning field ticks fast for AoE.",
+    upgrade: [{ dmg: 45, range: 130, spa: 350, splash: 65 }, { dmg: 80, range: 145, spa: 300, splash: 75 }],
+  },
+  puppet: {
+    name: "Puppet Master", rarity: "mythic", cost: 1500,
+    range: 140, dmg: 50, spa: 800, splash: 30, projectile: true,
+    color: "#c495ff", letter: "P",
+    desc: "Telekinetic control. High DPS.",
+    upgrade: [{ dmg: 90, range: 150, spa: 700 }, { dmg: 150, range: 165, spa: 600 }],
+  },
+  prodigy: {
+    name: "Prodigy", rarity: "secret", cost: 3000,
+    range: 180, dmg: 200, spa: 500, splash: 70, projectile: true,
+    color: "#ff2280", letter: "★",
+    desc: "SECRET rarity. Devastating AoE.",
+    upgrade: [{ dmg: 380, range: 200, spa: 450, splash: 85 }, { dmg: 700, range: 220, spa: 400, splash: 100 }],
+  },
+};
+const UNIT_IDS = Object.keys(UNITS);
+
+// ============================================================= TRAITS
+const TRAITS = {
+  bolt:     { name: "Bolt",     weight: 40,   color: "#9CA3AF", rarity: "common",    dmgMult: 1.0,  rangeMult: 1.0,  spaMult: 0.90 },
+  range:    { name: "Range",    weight: 25,   color: "#9CA3AF", rarity: "common",    dmgMult: 1.0,  rangeMult: 1.15, spaMult: 1.0 },
+  sonic:    { name: "Sonic",    weight: 15,   color: "#3B82F6", rarity: "rare",      dmgMult: 1.0,  rangeMult: 1.0,  spaMult: 0.80 },
+  solar:    { name: "Solar",    weight: 10,   color: "#3B82F6", rarity: "rare",      dmgMult: 1.25, rangeMult: 1.0,  spaMult: 1.0 },
+  blitz:    { name: "Blitz",    weight: 5,    color: "#A855F7", rarity: "epic",      dmgMult: 1.10, rangeMult: 1.0,  spaMult: 0.65 },
+  forsaken: { name: "Forsaken", weight: 3,    color: "#A855F7", rarity: "epic",      dmgMult: 1.40, rangeMult: 1.10, spaMult: 1.0 },
+  unbound:  { name: "Unbound",  weight: 1.5,  color: "#F59E0B", rarity: "legendary", dmgMult: 1.80, rangeMult: 1.20, spaMult: 0.85 },
+  draconic: { name: "Draconic", weight: 0.5,  color: "#EC4899", rarity: "mythic",    dmgMult: 2.20, rangeMult: 1.25, spaMult: 0.75 },
+};
+const TRAIT_IDS = Object.keys(TRAITS);
+const TRAIT_TOTAL = TRAIT_IDS.reduce((s, k) => s + TRAITS[k].weight, 0);
+
+function rollTrait() {
+  const r = Math.random() * TRAIT_TOTAL;
+  let acc = 0;
+  for (const k of TRAIT_IDS) { acc += TRAITS[k].weight; if (r <= acc) return k; }
+  return "bolt";
+}
+
+// ============================================================= SUMMON ODDS
+const SUMMON_ODDS = {
+  common: 45, rare: 30, epic: 17, legendary: 6, mythic: 1.8, secret: 0.2
+};
+const SUMMON_COST = 100;
+const SUMMON_10X_COST = 900;
+
+function rollSummon() {
+  const total = Object.values(SUMMON_ODDS).reduce((s, v) => s + v, 0);
+  const r = Math.random() * total;
+  let acc = 0, rarity = "common";
+  for (const [k, w] of Object.entries(SUMMON_ODDS)) { acc += w; if (r <= acc) { rarity = k; break; } }
+  const options = UNIT_IDS.filter(id => UNITS[id].rarity === rarity);
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+// ============================================================= STAGES
+const STAGES = [
+  {
+    id: "town", name: "Town Outskirts", diff: "Easy",
+    unlockAt: 0, gemReward: 50, goldReward: 300,
+    path: [{x:0,y:80},{x:200,y:80},{x:200,y:240},{x:480,y:240},{x:480,y:80},{x:640,y:80},{x:640,y:400},{x:120,y:400},{x:120,y:520},{x:720,y:520}],
+    waves: 15, hpMult: 1.0,
+  },
+  {
+    id: "forest", name: "Cursed Forest", diff: "Medium",
+    unlockAt: 1, gemReward: 100, goldReward: 500,
+    path: [{x:0,y:280},{x:180,y:280},{x:180,y:120},{x:400,y:120},{x:400,y:400},{x:180,y:400},{x:180,y:520},{x:560,y:520},{x:560,y:120},{x:720,y:120}],
+    waves: 20, hpMult: 1.4,
+  },
+  {
+    id: "arena", name: "Dark Arena", diff: "Hard",
+    unlockAt: 2, gemReward: 200, goldReward: 900,
+    path: [{x:0,y:60},{x:360,y:60},{x:360,y:180},{x:100,y:180},{x:100,y:340},{x:620,y:340},{x:620,y:180},{x:500,y:180},{x:500,y:500},{x:720,y:500}],
+    waves: 25, hpMult: 2.0,
+  },
+];
+
+// ============================================================= ENEMIES
+const ENEMIES = {
+  zombie: { hp: 60,   speed: 32, reward: 8,   color: "#5f8a3a", r: 12, name: "Zombie" },
+  runner: { hp: 40,   speed: 75, reward: 10,  color: "#c74a3a", r: 10, name: "Runner" },
+  tank:   { hp: 300,  speed: 22, reward: 30,  color: "#8b7355", r: 16, name: "Tank" },
+  boss:   { hp: 2500, speed: 18, reward: 250, color: "#e040a8", r: 22, name: "BOSS" },
+};
+
+// ============================================================= WAVES (used by all stages, scaled by hpMult)
+const WAVE_TEMPLATE = [
+  [["zombie", 8, 600]], [["zombie", 12, 500]],
+  [["zombie", 6, 400], ["runner", 5, 700]], [["runner", 10, 400]],
+  [["zombie", 10, 400], ["runner", 6, 600]], [["zombie", 15, 350], ["tank", 1, 3000]],
+  [["runner", 12, 350], ["zombie", 8, 500]], [["zombie", 10, 300], ["tank", 3, 2500]],
+  [["runner", 20, 300]], [["boss", 1, 100], ["zombie", 15, 500]],
+  [["zombie", 20, 300], ["runner", 10, 500]], [["tank", 5, 2000], ["runner", 15, 400]],
+  [["zombie", 25, 280], ["tank", 4, 2200]], [["runner", 30, 280]],
+  [["zombie", 30, 250], ["tank", 6, 1800]], [["runner", 25, 300], ["tank", 5, 1600]],
+  [["boss", 2, 5000], ["runner", 20, 350]], [["zombie", 40, 220], ["tank", 8, 1400]],
+  [["runner", 35, 250], ["tank", 10, 1200]], [["boss", 3, 4000], ["tank", 12, 1200], ["runner", 30, 300]],
+  [["zombie", 40, 200], ["tank", 10, 1200]], [["boss", 2, 4000], ["runner", 40, 200]],
+  [["tank", 15, 1000], ["runner", 30, 250]], [["boss", 3, 3000], ["zombie", 50, 180]],
+  [["boss", 5, 2500], ["tank", 20, 900], ["runner", 40, 200]],
+];
+
+// ============================================================= CODES
+const CODES = {
+  "RELEASE":       { gems: 500, gold: 500 },
+  "WELCOME":       { gems: 300, gold: 200 },
+  "UPDATE1":       { gems: 500, shards: 50 },
+  "DARKMAGE":      { gems: 1000 },
+  "MYTHICPULL":    { gems: 700 },
+  "SUMMER2026":    { gold: 1500, gems: 200 },
+  "GRIND":         { gold: 3000 },
+  "SECRET":        { gems: 2000, shards: 100 },
+};
+
+// ============================================================= SAVE / STATE
+const SAVE_KEY = "anime_defense_save_v1";
+
+function defaultSave() {
+  const owned = {};
+  for (const id of UNIT_IDS) owned[id] = 0;
+  owned.sword = 3; // Starter units
+  return {
+    gems: 1000, gold: 500, shards: 0,
+    owned, // { unitId: count }
+    unitLevels: {}, // { unitId: level (0-based) — persistent unit level }
+    clearedStages: [],
+    usedCodes: [],
+    lastDaily: 0,
+    dailyStreak: 0,
+    totalKills: 0,
+    totalWaves: 0,
+  };
+}
+
+let save;
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    save = raw ? JSON.parse(raw) : defaultSave();
+    // Migrate
+    if (!save.unitLevels) save.unitLevels = {};
+    if (!save.owned) save.owned = defaultSave().owned;
+    for (const id of UNIT_IDS) if (save.owned[id] === undefined) save.owned[id] = 0;
+  } catch(e) { save = defaultSave(); }
+}
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e) {} }
+loadSave();
+
+// ============================================================= UI HELPERS
+function toast(msg, color) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.style.color = color || "#ffe680";
+  el.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove("show"), 1800);
+}
+function fmt(n) { return Math.floor(n).toLocaleString(); }
+function refreshHUD() {
+  document.getElementById("hGold").textContent = fmt(save.gold);
+  document.getElementById("hGems").textContent = fmt(save.gems);
+  document.getElementById("hShards").textContent = fmt(save.shards);
+}
+function showModal(html) {
+  document.getElementById("modalBody").innerHTML = html;
+  document.getElementById("modal").classList.add("show");
+}
+function hideModal() { document.getElementById("modal").classList.remove("show"); }
+document.getElementById("modal").addEventListener("click", (e) => {
+  if (e.target.id === "modal") hideModal();
+});
+
+// ============================================================= NAV
+document.querySelectorAll(".nav-btn[data-page]").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".nav-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    document.querySelectorAll(".view-page").forEach(p => p.classList.remove("active"));
+    const pageId = "page-" + b.dataset.page;
+    document.getElementById(pageId).classList.add("active");
+    renderPage(b.dataset.page);
+  });
+});
+document.getElementById("wipeBtn").addEventListener("click", () => {
+  if (confirm("Wipe all progress and start fresh?")) {
+    localStorage.removeItem(SAVE_KEY);
+    loadSave();
+    refreshHUD();
+    renderPage("home");
+  }
+});
+
+// ============================================================= PAGE: HOME
+function renderHome() {
+  const p = document.getElementById("page-home");
+  // Daily reward check
+  const now = new Date();
+  const todayKey = now.getFullYear() + "-" + now.getMonth() + "-" + now.getDate();
+  const canClaim = save.lastDaily !== todayKey;
+  const streak = save.dailyStreak || 0;
+  const dailyRewards = [50, 75, 100, 150, 200, 300, 500]; // per streak day
+
+  let daysHtml = "";
+  for (let i = 0; i < 7; i++) {
+    const claimed = i < streak;
+    const today = i === streak && canClaim;
+    const cls = today ? "today" : (claimed ? "claimed" : "");
+    daysHtml += `<div class="daily-day ${cls}">Day ${i+1}<div class="amount">+${dailyRewards[i]}g</div></div>`;
+  }
+
+  p.innerHTML = `
+    <div class="home-hero">
+      <h1>Welcome back!</h1>
+      <p>Anime Defense — a tower defense collector game. Summon units, build your collection, and clear stages to earn gems and unlock more content.</p>
+      <div class="row">
+        <button class="btn gold big" onclick="document.querySelector('.nav-btn[data-page=play]').click()">▶ PLAY</button>
+        <button class="btn big" onclick="document.querySelector('.nav-btn[data-page=summon]').click()">🎲 SUMMON</button>
+      </div>
+    </div>
+
+    <div class="home-hero" style="background:linear-gradient(135deg,#3a2f5f,#1a1330);">
+      <h2>Daily Reward Streak</h2>
+      <p style="margin-bottom:8px;">Log in daily for escalating gem rewards. Miss a day = streak resets.</p>
+      ${canClaim
+        ? `<button class="btn gold" id="claimDaily">CLAIM DAY ${streak+1} (+${dailyRewards[streak]} gems)</button>`
+        : `<p style="color:#8fbf5a;font-weight:700;">✓ Claimed today. Come back tomorrow!</p>`
+      }
+      <div class="daily-strip">${daysHtml}</div>
+    </div>
+
+    <h2>Your Progress</h2>
+    <div class="home-grid">
+      <div class="home-card"><div class="k">TOTAL UNITS OWNED</div><div class="v">${Object.values(save.owned).reduce((s,v)=>s+v,0)}</div><div class="s">${Object.entries(save.owned).filter(([,c])=>c>0).length} unique</div></div>
+      <div class="home-card"><div class="k">STAGES CLEARED</div><div class="v">${save.clearedStages.length}</div><div class="s">out of ${STAGES.length}</div></div>
+      <div class="home-card"><div class="k">TOTAL KILLS</div><div class="v">${fmt(save.totalKills)}</div></div>
+      <div class="home-card"><div class="k">TOTAL WAVES CLEARED</div><div class="v">${fmt(save.totalWaves)}</div></div>
+      <div class="home-card"><div class="k">DAILY STREAK</div><div class="v">${streak}</div><div class="s">days in a row</div></div>
+      <div class="home-card"><div class="k">CODES REDEEMED</div><div class="v">${save.usedCodes.length}</div><div class="s">out of ${Object.keys(CODES).length}</div></div>
+    </div>
+  `;
+
+  const claimBtn = document.getElementById("claimDaily");
+  if (claimBtn) claimBtn.addEventListener("click", () => {
+    save.gems += dailyRewards[streak];
+    save.dailyStreak = (streak + 1) % 7;
+    save.lastDaily = todayKey;
+    persist(); refreshHUD();
+    toast(`+${dailyRewards[streak]} gems claimed!`);
+    renderHome();
+  });
+}
+
+// ============================================================= PAGE: SUMMON
+function renderSummon() {
+  const p = document.getElementById("page-summon");
+  p.innerHTML = `
+    <div class="banner">
+      <h2>Standard Banner</h2>
+      <div class="sub">Every summon rolls a random unit weighted by rarity.</div>
+      <div class="pulls">
+        <button class="banner-btn" id="pull1" ${save.gems < SUMMON_COST ? 'disabled' : ''}>PULL x1 (${SUMMON_COST}💎)</button>
+        <button class="banner-btn big" id="pull10" ${save.gems < SUMMON_10X_COST ? 'disabled' : ''}>PULL x10 (${SUMMON_10X_COST}💎)</button>
+      </div>
+      <div class="odds-table">
+        ${Object.entries(SUMMON_ODDS).map(([k, v]) => `
+          <div><b style="color:${RARITIES[k].color};">${v}%</b>${RARITIES[k].label}</div>
+        `).join("")}
+      </div>
+    </div>
+
+    <h3>Available Units</h3>
+    <div class="col-grid">
+      ${UNIT_IDS.map(id => {
+        const u = UNITS[id]; const rar = RARITIES[u.rarity];
+        return `<div class="unit-tile ${save.owned[id] === 0 ? 'locked' : ''}" style="color:${u.color};">
+          <div class="avatar">${u.letter}</div>
+          <div class="name" style="color:#e6e6ff;">${u.name}</div>
+          <div class="rar" style="color:${rar.color};">${rar.label}</div>
+          ${save.owned[id] > 0 ? `<div class="count">×${save.owned[id]}</div>` : ""}
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+  document.getElementById("pull1").addEventListener("click", () => doSummons(1));
+  document.getElementById("pull10").addEventListener("click", () => doSummons(10));
+}
+
+function doSummons(count) {
+  const cost = count === 1 ? SUMMON_COST : SUMMON_10X_COST;
+  if (save.gems < cost) { toast("Not enough gems!"); return; }
+  save.gems -= cost;
+  const results = [];
+  for (let i = 0; i < count; i++) {
+    const id = rollSummon();
+    const isNew = save.owned[id] === 0;
+    save.owned[id] = (save.owned[id] || 0) + 1;
+    results.push({ id, isNew });
+  }
+  persist(); refreshHUD();
+  showSummonResults(results);
+  // If summon page is visible, refresh it
+  if (document.getElementById("page-summon").classList.contains("active")) renderSummon();
+}
+
+function showSummonResults(results) {
+  // Show best rarity first
+  results.sort((a, b) => RARITIES[UNITS[b.id].rarity].order - RARITIES[UNITS[a.id].rarity].order);
+  let html = `<h2 style="color:#ffe680;">SUMMON RESULTS</h2>
+    <div class="pull-grid">
+      ${results.map(r => {
+        const u = UNITS[r.id]; const rar = RARITIES[u.rarity];
+        return `<div class="pull-card" style="color:${u.color};border-color:${rar.color};box-shadow:0 0 12px ${rar.color}66;">
+          ${r.isNew ? '<div class="new-tag">NEW</div>' : ''}
+          <div class="avatar">${u.letter}</div>
+          <div class="n" style="color:#e6e6ff;">${u.name}</div>
+          <div class="r" style="color:${rar.color};">${rar.label}</div>
+        </div>`;
+      }).join("")}
+    </div>
+    <button class="btn" onclick="document.getElementById('modal').classList.remove('show');">OK</button>
+  `;
+  showModal(html);
+}
+
+// ============================================================= PAGE: COLLECTION
+function renderCollection() {
+  const p = document.getElementById("page-collection");
+  p.innerHTML = `
+    <h2>Your Collection</h2>
+    <p style="color:#8a8ab5;font-size:0.8rem;margin-bottom:12px;">Click a unit to view details or use duplicates to level them up (permanent stat boost).</p>
+    <div class="col-grid">
+      ${UNIT_IDS.map(id => {
+        const u = UNITS[id]; const rar = RARITIES[u.rarity];
+        const cnt = save.owned[id] || 0;
+        const lv = save.unitLevels[id] || 0;
+        return `<div class="unit-tile ${cnt === 0 ? 'locked' : ''}" data-id="${id}" style="color:${u.color};border-color:${rar.color}66;">
+          ${cnt > 0 && lv > 0 ? `<div class="level">LV ${lv+1}</div>` : ''}
+          ${cnt > 0 ? `<div class="count">×${cnt}</div>` : ''}
+          <div class="avatar">${u.letter}</div>
+          <div class="name" style="color:#e6e6ff;">${u.name}</div>
+          <div class="rar" style="color:${rar.color};">${rar.label}</div>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+  p.querySelectorAll(".unit-tile:not(.locked)").forEach(t => {
+    t.addEventListener("click", () => showUnitDetail(t.dataset.id));
+  });
+}
+
+function showUnitDetail(id) {
+  const u = UNITS[id]; const rar = RARITIES[u.rarity];
+  const cnt = save.owned[id] || 0;
+  const lv = save.unitLevels[id] || 0;
+  const canLevel = lv < 4 && cnt >= (lv + 2);
+  const cost = lv + 2;
+  const s = { dmg: u.dmg * (1 + lv * 0.15), range: u.range + lv * 5, spa: u.spa * Math.pow(0.95, lv) };
+  const html = `
+    <h2 style="color:${u.color};">${u.name}</h2>
+    <div style="color:${rar.color};font-size:0.8rem;letter-spacing:0.1em;margin-bottom:8px;">${rar.label} · Owned: ${cnt} · Level: ${lv+1}</div>
+    <div style="background:rgba(0,0,0,0.35);border-radius:8px;padding:12px;text-align:left;margin:10px 0;">
+      <p style="color:#a5a5d5;font-style:italic;margin-bottom:8px;">${u.desc}</p>
+      <p><b style="color:#cfe0b8;">Damage:</b> ${Math.round(s.dmg)}${lv > 0 ? ` <span style="color:#8fbf5a;">(+${Math.round(u.dmg * lv * 0.15)})</span>` : ''}</p>
+      <p><b style="color:#cfe0b8;">Range:</b> ${Math.round(s.range)}${lv > 0 ? ` <span style="color:#8fbf5a;">(+${lv*5})</span>` : ''}</p>
+      <p><b style="color:#cfe0b8;">Attack speed:</b> ${(s.spa/1000).toFixed(2)}s</p>
+      ${u.splash ? `<p><b style="color:#cfe0b8;">AoE:</b> ${u.splash}</p>` : ''}
+      ${u.slow ? `<p><b style="color:#cfe0b8;">Slow:</b> ${Math.round(u.slow*100)}%</p>` : ''}
+      <p><b style="color:#cfe0b8;">Deploy cost:</b> ${u.cost} gold</p>
+    </div>
+    ${lv >= 4 ? '<p style="color:#ffe680;font-weight:700;">MAX LEVEL</p>' :
+      canLevel ? `<button class="btn green" id="lvlBtn">LEVEL UP (uses ${cost} copies)</button>`
+               : `<p style="color:#8a8ab5;font-size:0.8rem;">Need ${cost} copies for next level. Summon more.</p>`}
+    <button class="btn" onclick="document.getElementById('modal').classList.remove('show');" style="margin-top:8px;">CLOSE</button>
+  `;
+  showModal(html);
+  const btn = document.getElementById("lvlBtn");
+  if (btn) btn.addEventListener("click", () => {
+    save.owned[id] -= cost;
+    save.unitLevels[id] = lv + 1;
+    persist(); refreshHUD();
+    toast(`${u.name} leveled up to LV ${lv + 2}!`);
+    hideModal();
+    renderCollection();
+  });
+}
+
+// ============================================================= PAGE: PLAY (stage select)
+function renderPlay() {
+  const p = document.getElementById("page-play");
+  p.innerHTML = `
+    <h2>Story Stages</h2>
+    <p style="color:#8a8ab5;font-size:0.8rem;margin-bottom:12px;">Clear stages in order to unlock the next one. Each stage has different waves, path layouts, and rewards.</p>
+    <div class="stage-grid">
+      ${STAGES.map((s, idx) => {
+        const cleared = save.clearedStages.includes(s.id);
+        const unlocked = idx === 0 || save.clearedStages.includes(STAGES[s.unlockAt].id);
+        return `<div class="stage-tile ${cleared ? 'cleared' : ''} ${!unlocked ? 'locked' : ''}" data-id="${s.id}">
+          <div class="badge">${cleared ? '★ CLEARED' : unlocked ? 'AVAILABLE' : '🔒 LOCKED'}</div>
+          <h3>${s.name}</h3>
+          <p><b>Difficulty:</b> <span style="color:${s.diff==='Easy'?'#5fbf5a':s.diff==='Medium'?'#c7a24a':'#c74a3a'};">${s.diff}</span></p>
+          <p><b>Waves:</b> ${s.waves}</p>
+          <p><b>Rewards:</b> +${s.gemReward}💎 +${s.goldReward}g</p>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+  p.querySelectorAll(".stage-tile:not(.locked)").forEach(t => {
+    t.addEventListener("click", () => showDeployScreen(t.dataset.id));
+  });
+}
+
+// ============================================================= DEPLOY SCREEN — pick which owned units to bring
+let deployStage = null, deploySelection = [];
+function showDeployScreen(stageId) {
+  deployStage = STAGES.find(s => s.id === stageId);
+  deploySelection = [];
+  const ownedIds = UNIT_IDS.filter(id => save.owned[id] > 0);
+  const html = `
+    <h2>Deploy for ${deployStage.name}</h2>
+    <p style="color:#a5a5d5;margin-bottom:12px;font-size:0.85rem;">Pick up to 6 units from your collection to bring into this stage.</p>
+    <div id="deployGrid" class="col-grid">
+      ${ownedIds.map(id => {
+        const u = UNITS[id]; const rar = RARITIES[u.rarity];
+        const lv = save.unitLevels[id] || 0;
+        return `<div class="unit-tile" data-id="${id}" style="color:${u.color};border-color:${rar.color}66;">
+          <div class="level">LV ${lv+1}</div>
+          <div class="avatar">${u.letter}</div>
+          <div class="name" style="color:#e6e6ff;">${u.name}</div>
+          <div class="rar" style="color:${rar.color};">${rar.label}</div>
+        </div>`;
+      }).join("")}
+    </div>
+    <div style="margin-top:14px;" id="deployPicked">
+      <p style="color:#8a8ab5;">Selected: <b id="pickCount">0</b>/6</p>
+    </div>
+    <div style="margin-top:12px;">
+      <button class="btn gold big" id="startCombatBtn" disabled>START RAID</button>
+      <button class="btn" onclick="document.getElementById('modal').classList.remove('show');">CANCEL</button>
+    </div>
+  `;
+  showModal(html);
+  document.querySelectorAll("#deployGrid .unit-tile").forEach(t => {
+    t.addEventListener("click", () => {
+      const id = t.dataset.id;
+      const i = deploySelection.indexOf(id);
+      if (i >= 0) { deploySelection.splice(i, 1); t.style.background = ''; t.style.boxShadow = ''; }
+      else if (deploySelection.length < 6) {
+        deploySelection.push(id);
+        t.style.background = 'linear-gradient(160deg, #3a2f5f, #24172e)';
+        t.style.boxShadow = '0 0 12px rgba(255,230,128,0.5)';
+      }
+      document.getElementById("pickCount").textContent = deploySelection.length;
+      document.getElementById("startCombatBtn").disabled = deploySelection.length === 0;
+    });
+  });
+  document.getElementById("startCombatBtn").addEventListener("click", () => {
+    hideModal();
+    startCombat(deployStage, deploySelection.slice());
+  });
+}
+
+// ============================================================= PAGE: CODES
+function renderCodes() {
+  const p = document.getElementById("page-codes");
+  p.innerHTML = `
+    <h2>Redeem Codes</h2>
+    <p style="color:#8a8ab5;font-size:0.85rem;margin-bottom:12px;">Enter a code to redeem free rewards. Codes are one-use per account.</p>
+    <div style="background:rgba(0,0,0,0.35);border-radius:8px;padding:14px;margin-bottom:14px;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="codeInput" placeholder="ENTER CODE" autocomplete="off"/>
+        <button class="btn green" id="redeemBtn">REDEEM</button>
+      </div>
+    </div>
+    <h3>Available Codes (hint list)</h3>
+    <div>
+      ${Object.entries(CODES).map(([code, rewards]) => {
+        const used = save.usedCodes.includes(code);
+        const r = [];
+        if (rewards.gems) r.push(`+${rewards.gems}💎`);
+        if (rewards.gold) r.push(`+${rewards.gold}g`);
+        if (rewards.shards) r.push(`+${rewards.shards}⭐`);
+        return `<div class="code-item ${used ? 'used' : ''}">
+          <span>${code}</span>
+          <span class="r">${r.join(" · ")}${used ? " ✓ REDEEMED" : ""}</span>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+  document.getElementById("redeemBtn").addEventListener("click", redeemCode);
+  document.getElementById("codeInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") redeemCode();
+  });
+}
+
+function redeemCode() {
+  const input = document.getElementById("codeInput");
+  const code = input.value.trim().toUpperCase();
+  if (!code) return;
+  if (!CODES[code]) { toast("Invalid code", "#c74a3a"); return; }
+  if (save.usedCodes.includes(code)) { toast("Already used", "#c74a3a"); return; }
+  const r = CODES[code];
+  save.usedCodes.push(code);
+  if (r.gems) save.gems += r.gems;
+  if (r.gold) save.gold += r.gold;
+  if (r.shards) save.shards += r.shards;
+  persist(); refreshHUD();
+  toast(`Code redeemed! +${[r.gems?r.gems+'💎':'', r.gold?r.gold+'g':'', r.shards?r.shards+'⭐':''].filter(Boolean).join(' ')}`);
+  input.value = "";
+  renderCodes();
+}
+
+// ============================================================= COMBAT (tower defense)
+const CANVAS_W = 720, CANVAS_H = 560, TILE = 40;
+const GRID_COLS = CANVAS_W / TILE, GRID_ROWS = CANVAS_H / TILE;
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let PATH = [], BLOCKED = new Set();
+let gameGold = 0, gameLives = 20, gameWave = 0, gameKills = 0;
+let gameStage = null, gameWaves = [], deployedUnits = [];
+let placedUnits = [], enemies = [], projectiles = [], particles = [], damageNumbers = [];
+let waveActive = false, waveQueue = [], lastSpawnTime = 0;
+let selectedShopUnit = null, selectedPlacedUnit = null;
+let mouseX = 0, mouseY = 0, hoverTile = null;
+let running = false, speed = 1;
+let spinAnimation = null;
+
+function computeBlocked(path) {
+  const blocked = new Set();
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i], b = path[i+1];
+    const steps = Math.hypot(b.x-a.x, b.y-a.y) / 10;
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const px = a.x + (b.x - a.x) * t;
+      const py = a.y + (b.y - a.y) * t;
+      for (let dx = -1; dx <= 1; dx++)
+        for (let dy = -1; dy <= 1; dy++)
+          blocked.add((Math.floor(px/TILE)+dx) + "," + (Math.floor(py/TILE)+dy));
+    }
+  }
+  return blocked;
+}
+
+function startCombat(stage, unitIds) {
+  gameStage = stage;
+  PATH = stage.path;
+  BLOCKED = computeBlocked(PATH);
+  gameWaves = WAVE_TEMPLATE.slice(0, stage.waves);
+  deployedUnits = unitIds;
+
+  gameGold = 500; gameLives = 20; gameWave = 0; gameKills = 0;
+  waveActive = false; waveQueue = []; running = false; speed = 1;
+  placedUnits = []; enemies = []; projectiles = []; particles = []; damageNumbers = [];
+  selectedShopUnit = null; selectedPlacedUnit = null; spinAnimation = null;
+
+  document.getElementById("cMaxWave").textContent = stage.waves;
+  document.getElementById("speedBtn").textContent = "SPEED 1x";
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("details").classList.remove("show");
+
+  buildShopUI();
+  updateCombatHUD();
+  document.getElementById("combatView").classList.add("show");
+  lastFrame = performance.now();
+  requestAnimationFrame(update);
+}
+
+function endCombat(won) {
+  running = false;
+  if (won) {
+    save.gems += gameStage.gemReward;
+    save.gold += gameStage.goldReward;
+    if (!save.clearedStages.includes(gameStage.id)) save.clearedStages.push(gameStage.id);
+    save.totalWaves += gameStage.waves;
+    save.totalKills += gameKills;
+    persist();
+    showModal(`
+      <h2 style="color:#ffe680;">🏆 VICTORY!</h2>
+      <p style="color:#cfe0b8;margin:12px 0;">You cleared <b>${gameStage.name}</b>!</p>
+      <p style="color:#a5a5d5;margin-bottom:12px;">${gameKills} kills across ${gameStage.waves} waves.</p>
+      <div style="background:rgba(0,0,0,0.35);border-radius:8px;padding:12px;margin:12px 0;">
+        <div style="font-size:0.75rem;color:#8a8ab5;letter-spacing:0.12em;margin-bottom:6px;">REWARDS</div>
+        <div style="font-size:1.2rem;color:#ffe680;">+${gameStage.gemReward}💎 +${gameStage.goldReward}g</div>
+      </div>
+      <button class="btn gold big" onclick="document.getElementById('modal').classList.remove('show');document.getElementById('combatView').classList.remove('show');">CONTINUE</button>
+    `);
+  } else {
+    save.totalKills += gameKills;
+    persist();
+    showModal(`
+      <h2 style="color:#c74a3a;">💀 DEFEAT</h2>
+      <p style="color:#cfe0b8;margin:12px 0;">You reached wave <b>${gameWave + 1}/${gameStage.waves}</b> at ${gameStage.name}.</p>
+      <p style="color:#a5a5d5;margin-bottom:12px;">${gameKills} kills. Try upgrading your units or bringing a stronger team.</p>
+      <button class="btn big" onclick="document.getElementById('modal').classList.remove('show');document.getElementById('combatView').classList.remove('show');">RETURN</button>
+    `);
+  }
+  refreshHUD();
+}
+
+function tileKey(gx, gy) { return gx + "," + gy; }
+function tileFromXY(x, y) { return { gx: Math.floor(x / TILE), gy: Math.floor(y / TILE) }; }
+function canPlace(gx, gy) {
+  if (gx < 0 || gy < 0 || gx >= GRID_COLS || gy >= GRID_ROWS) return false;
+  if (BLOCKED.has(tileKey(gx, gy))) return false;
+  for (const u of placedUnits) {
+    const ut = tileFromXY(u.x, u.y);
+    if (ut.gx === gx && ut.gy === gy) return false;
+  }
+  return true;
+}
+function rr(a, b) { return a + Math.random() * (b - a); }
+function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
+
+// Effective stats given persistent level + upgrade
+function unitStats(u) {
+  const base = UNITS[u.type];
+  const persistLv = save.unitLevels[u.type] || 0;
+  const stats = {
+    range: base.range + persistLv * 5,
+    dmg: base.dmg * (1 + persistLv * 0.15),
+    spa: base.spa * Math.pow(0.95, persistLv),
+    splash: base.splash, slow: base.slow, slowDur: base.slowDur,
+    projectile: base.projectile, color: base.color, name: base.name,
+  };
+  for (let i = 0; i < u.level; i++) {
+    const up = base.upgrade[i];
+    if (!up) break;
+    for (const k in up) if (k !== "cost") stats[k] = up[k];
+  }
+  const trait = TRAITS[u.trait || "bolt"];
+  if (trait) {
+    stats.dmg = Math.round(stats.dmg * trait.dmgMult);
+    stats.range = Math.round(stats.range * trait.rangeMult);
+    stats.spa = Math.round(stats.spa * trait.spaMult);
+  }
+  return stats;
+}
+
+function buildShopUI() {
+  const list = document.getElementById("shopList");
+  list.innerHTML = "";
+  for (const id of deployedUnits) {
+    const u = UNITS[id]; const rar = RARITIES[u.rarity];
+    const lv = save.unitLevels[id] || 0;
+    const card = document.createElement("div");
+    card.className = "shop-card";
+    card.dataset.type = id;
+    card.innerHTML = `
+      <div class="cost">${u.cost}g</div>
+      <div class="name">${u.name} ${lv > 0 ? `<span style="color:#f5c060;font-size:0.65rem;">LV${lv+1}</span>` : ''}</div>
+      <div class="rar" style="color:${rar.color};">${rar.label}</div>
+      <div class="trait">DMG ${Math.round(u.dmg * (1 + lv*0.15))} · RNG ${u.range + lv*5}</div>
+    `;
+    card.addEventListener("click", () => {
+      if (gameGold < u.cost) { toast("Not enough gold!"); return; }
+      document.querySelectorAll(".shop-card").forEach(c => c.classList.remove("selected"));
+      card.classList.add("selected");
+      selectedShopUnit = id;
+      selectedPlacedUnit = null;
+      document.getElementById("details").classList.remove("show");
+    });
+    list.appendChild(card);
+  }
+}
+
+function updateCombatHUD() {
+  document.getElementById("cGold").textContent = fmt(gameGold);
+  document.getElementById("cLives").textContent = gameLives;
+  document.getElementById("cWave").textContent = Math.min(gameWave + (waveActive ? 1 : 0), gameStage ? gameStage.waves : 0);
+  document.getElementById("cKills").textContent = gameKills;
+  document.querySelectorAll(".shop-card").forEach(c => {
+    const cost = UNITS[c.dataset.type].cost;
+    if (gameGold < cost) c.classList.add("locked");
+    else c.classList.remove("locked");
+  });
+}
+
+function startWave() {
+  if (waveActive || gameWave >= gameStage.waves) return;
+  waveActive = true;
+  waveQueue = [];
+  const wave = gameWaves[gameWave];
+  let t = 0;
+  for (const [type, count, delay] of wave) {
+    for (let i = 0; i < count; i++) { waveQueue.push({ type, spawnAt: t }); t += delay; }
+  }
+  waveQueue.sort((a, b) => a.spawnAt - b.spawnAt);
+  lastSpawnTime = performance.now();
+  document.getElementById("startBtn").disabled = true;
+}
+
+function spawnEnemy(type) {
+  const def = ENEMIES[type];
+  const spawn = PATH[0];
+  const hpScale = (1 + gameWave * 0.05) * gameStage.hpMult;
+  enemies.push({
+    type, x: spawn.x - 20, y: spawn.y,
+    hp: def.hp * hpScale, maxhp: def.hp * hpScale,
+    wpIdx: 1, slowUntil: 0, slowFactor: 0,
+  });
+}
+
+let lastFrame = performance.now();
+function update() {
+  if (!document.getElementById("combatView").classList.contains("show")) return;
+  const now = performance.now();
+  const dt = Math.min(50, (now - lastFrame)) * speed;
+  lastFrame = now;
+
+  if (running) {
+    if (waveActive && waveQueue.length > 0) {
+      const elapsed = now - lastSpawnTime;
+      while (waveQueue.length > 0 && elapsed * speed >= waveQueue[0].spawnAt) spawnEnemy(waveQueue.shift().type);
+    }
+    // Move enemies
+    for (const e of enemies) {
+      const def = ENEMIES[e.type];
+      const wp = PATH[e.wpIdx]; if (!wp) continue;
+      const dx = wp.x - e.x, dy = wp.y - e.y, d = Math.hypot(dx, dy);
+      let sp = def.speed / 1000;
+      if (now < e.slowUntil) sp *= (1 - e.slowFactor);
+      const move = sp * dt;
+      if (d <= move) {
+        e.x = wp.x; e.y = wp.y; e.wpIdx++;
+        if (e.wpIdx >= PATH.length) { e.hp = -999; gameLives--; if (gameLives <= 0) { endCombat(false); return; } }
+      } else {
+        e.x += (dx / d) * move; e.y += (dy / d) * move;
+      }
+    }
+    // Units attack
+    for (const u of placedUnits) {
+      const s = unitStats(u);
+      if (!u.lastShot) u.lastShot = 0;
+      if (now - u.lastShot < s.spa / speed) continue;
+      let target = null, bestProg = -1;
+      for (const e of enemies) {
+        if (e.hp <= 0) continue;
+        if (dist(u.x, u.y, e.x, e.y) > s.range) continue;
+        const prog = e.wpIdx * 10000 + (e.wpIdx > 0 ? dist(PATH[e.wpIdx-1].x, PATH[e.wpIdx-1].y, e.x, e.y) : 0);
+        if (prog > bestProg) { bestProg = prog; target = e; }
+      }
+      if (target) {
+        u.lastShot = now;
+        if (s.projectile) projectiles.push({ x: u.x, y: u.y, tx: target.x, ty: target.y, dmg: s.dmg, splash: s.splash, color: s.color, speed: 8, slow: s.slow, slowDur: s.slowDur });
+        else applyHit(target, s.dmg, s.splash, s.slow, s.slowDur, s.color);
+      }
+    }
+    // Projectiles
+    for (const p of projectiles) {
+      const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
+      if (d < p.speed * (dt / 16)) {
+        let hit = null;
+        for (const e of enemies) { if (e.hp > 0 && dist(p.tx, p.ty, e.x, e.y) < 20) { hit = e; break; } }
+        applyHit(hit || { x: p.tx, y: p.ty, hp: 1, wpIdx: 0 }, p.dmg, p.splash, p.slow, p.slowDur, p.color, p.tx, p.ty);
+        p.dead = true;
+      } else { p.x += (dx / d) * p.speed * (dt / 16); p.y += (dy / d) * p.speed * (dt / 16); }
+    }
+    projectiles = projectiles.filter(p => !p.dead);
+    for (const e of enemies) {
+      if (e.hp <= 0 && e.hp !== -999) {
+        gameGold += ENEMIES[e.type].reward; gameKills++;
+        for (let i = 0; i < 10; i++) particles.push({ x: e.x, y: e.y, vx: rr(-2,2), vy: rr(-2,2), life: 20, col: ENEMIES[e.type].color });
+      }
+    }
+    enemies = enemies.filter(e => e.hp > 0);
+    for (const p of particles) { p.x += p.vx; p.y += p.vy; p.vx *= 0.9; p.vy *= 0.9; p.life--; }
+    particles = particles.filter(p => p.life > 0);
+    for (const d of damageNumbers) { d.y += d.vy; d.vy *= 0.95; d.life--; }
+    damageNumbers = damageNumbers.filter(d => d.life > 0);
+
+    if (waveActive && waveQueue.length === 0 && enemies.length === 0) {
+      waveActive = false;
+      gameGold += 100 + gameWave * 20;
+      gameWave++;
+      document.getElementById("startBtn").disabled = false;
+      if (gameWave >= gameStage.waves) { endCombat(true); return; }
+      else toast(`Wave ${gameWave} cleared! +${100 + (gameWave-1) * 20}g bonus`);
+    }
+  }
+  updateCombatHUD();
+  render();
+  requestAnimationFrame(update);
+}
+
+function applyHit(target, dmg, splash, slow, slowDur, color, hx, hy) {
+  const now = performance.now();
+  const cx = hx !== undefined ? hx : target.x;
+  const cy = hy !== undefined ? hy : target.y;
+  if (splash > 0) {
+    for (const e of enemies) {
+      if (e.hp <= 0) continue;
+      if (dist(cx, cy, e.x, e.y) <= splash) {
+        e.hp -= dmg;
+        damageNumbers.push({ x: e.x + rr(-6,6), y: e.y - 10, text: Math.round(dmg), life: 30, color: "#ffe680", vy: -1.5 });
+        if (slow) { e.slowUntil = now + slowDur; e.slowFactor = slow; }
+      }
+    }
+    for (let i = 0; i < 6; i++) particles.push({ x: cx + rr(-splash/2, splash/2), y: cy + rr(-splash/2, splash/2), vx: rr(-1,1), vy: rr(-1,1), life: 15, col: color });
+  } else if (target && target.hp) {
+    target.hp -= dmg;
+    damageNumbers.push({ x: target.x + rr(-6,6), y: target.y - 10, text: Math.round(dmg), life: 30, color: "#ffe680", vy: -1.5 });
+    if (slow) { target.slowUntil = now + slowDur; target.slowFactor = slow; }
+  }
+}
+
+function render() {
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  // grid
+  ctx.strokeStyle = "rgba(80,80,140,0.08)"; ctx.lineWidth = 1;
+  for (let x = 0; x <= CANVAS_W; x += TILE) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,CANVAS_H); ctx.stroke(); }
+  for (let y = 0; y <= CANVAS_H; y += TILE) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CANVAS_W,y); ctx.stroke(); }
+  // path
+  ctx.strokeStyle = "#3a3a5c"; ctx.lineWidth = 34; ctx.lineJoin = "round"; ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(PATH[0].x, PATH[0].y);
+  for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+  ctx.stroke();
+  ctx.strokeStyle = "#2a2a45"; ctx.lineWidth = 30;
+  ctx.beginPath(); ctx.moveTo(PATH[0].x, PATH[0].y);
+  for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(255,230,128,0.15)"; ctx.lineWidth = 2; ctx.setLineDash([6,6]);
+  ctx.beginPath(); ctx.moveTo(PATH[0].x, PATH[0].y);
+  for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = "#5f8a3a"; ctx.fillRect(PATH[0].x - 20, PATH[0].y - 20, 20, 40);
+  const last = PATH[PATH.length - 1];
+  ctx.fillStyle = "#c74a3a"; ctx.fillRect(last.x, last.y - 20, 20, 40);
+  ctx.fillStyle = "#fff"; ctx.font = "bold 10px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("BASE", last.x + 10, last.y + 4);
+
+  if (selectedShopUnit && hoverTile) {
+    const gx = hoverTile.gx, gy = hoverTile.gy;
+    const ok = canPlace(gx, gy) && gameGold >= UNITS[selectedShopUnit].cost;
+    ctx.fillStyle = ok ? "rgba(143,191,90,0.28)" : "rgba(199,74,58,0.28)";
+    ctx.fillRect(gx*TILE, gy*TILE, TILE, TILE);
+    ctx.strokeStyle = ok ? "#8fbf5a" : "#c74a3a"; ctx.lineWidth = 2;
+    ctx.strokeRect(gx*TILE + 1, gy*TILE + 1, TILE - 2, TILE - 2);
+    if (ok) {
+      const s = UNITS[selectedShopUnit];
+      ctx.strokeStyle = "rgba(255,230,128,0.5)"; ctx.setLineDash([4,4]);
+      ctx.beginPath(); ctx.arc(gx*TILE + TILE/2, gy*TILE + TILE/2, s.range, 0, 7); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  if (selectedPlacedUnit) {
+    const s = unitStats(selectedPlacedUnit);
+    ctx.strokeStyle = "rgba(255,230,128,0.4)"; ctx.lineWidth = 1.5; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.arc(selectedPlacedUnit.x, selectedPlacedUnit.y, s.range, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  for (const u of placedUnits) {
+    const s = unitStats(u); const trait = TRAITS[u.trait || "bolt"];
+    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.beginPath(); ctx.ellipse(u.x, u.y+12, 14, 4, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = trait.color; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(u.x, u.y, 17, 0, 7); ctx.stroke();
+    ctx.fillStyle = s.color; ctx.strokeStyle = "#000"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(u.x, u.y, 14, 0, 7); ctx.fill(); ctx.stroke();
+    for (let i = 0; i <= u.level; i++) {
+      ctx.fillStyle = "#ffe680"; ctx.beginPath(); ctx.arc(u.x - 8 + i*8, u.y - 20, 2.5, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = "#000"; ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(UNITS[u.type].letter, u.x, u.y + 1);
+  }
+
+  for (const e of enemies) {
+    const def = ENEMIES[e.type];
+    const slowed = performance.now() < e.slowUntil;
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath(); ctx.ellipse(e.x, e.y + def.r*0.8, def.r, def.r*0.35, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = slowed ? "#60d0f0" : def.color; ctx.strokeStyle = "#000"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(e.x, e.y, def.r, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(e.x - def.r*0.3, e.y - def.r*0.15, 2, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.x + def.r*0.3, e.y - def.r*0.15, 2, 0, 7); ctx.fill();
+    if (e.hp < e.maxhp) {
+      const w = def.r * 2;
+      ctx.fillStyle = "#000"; ctx.fillRect(e.x - w/2, e.y - def.r - 8, w, 4);
+      ctx.fillStyle = e.hp/e.maxhp > 0.5 ? "#5fbf5a" : e.hp/e.maxhp > 0.2 ? "#c7a24a" : "#c74a3a";
+      ctx.fillRect(e.x - w/2, e.y - def.r - 8, w * (e.hp/e.maxhp), 4);
+    }
+  }
+  for (const p of projectiles) {
+    ctx.fillStyle = p.color; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  for (const p of particles) {
+    ctx.fillStyle = p.col; ctx.globalAlpha = Math.min(1, p.life/20);
+    ctx.fillRect(p.x-1.5, p.y-1.5, 3, 3); ctx.globalAlpha = 1;
+  }
+  for (const d of damageNumbers) {
+    ctx.fillStyle = d.color; ctx.globalAlpha = Math.min(1, d.life/30);
+    ctx.font = "bold 12px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(d.text, d.x, d.y); ctx.globalAlpha = 1;
+  }
+  drawSpin();
+}
+
+// ============================================================= COMBAT INPUT
+canvas.addEventListener("mousemove", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+  mouseY = (e.clientY - rect.top) * (canvas.height / rect.height);
+  hoverTile = tileFromXY(mouseX, mouseY);
+});
+canvas.addEventListener("mouseleave", () => { hoverTile = null; });
+canvas.addEventListener("click", (e) => {
+  if (spinAnimation) {
+    if (performance.now() - spinAnimation.startTime >= spinAnimation.duration) finishSpin();
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const cx = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const cy = (e.clientY - rect.top) * (canvas.height / rect.height);
+  for (const u of placedUnits) {
+    if (dist(cx, cy, u.x, u.y) < 16) {
+      selectedPlacedUnit = u; selectedShopUnit = null;
+      document.querySelectorAll(".shop-card").forEach(c => c.classList.remove("selected"));
+      showCombatDetails(u); return;
+    }
+  }
+  if (selectedShopUnit) {
+    const t = tileFromXY(cx, cy);
+    if (!canPlace(t.gx, t.gy)) { toast("Can't place there!"); return; }
+    const cost = UNITS[selectedShopUnit].cost;
+    if (gameGold < cost) { toast("Not enough gold!"); return; }
+    gameGold -= cost;
+    const newU = { type: selectedShopUnit, level: 0, x: t.gx*TILE + TILE/2, y: t.gy*TILE + TILE/2, lastShot: 0, trait: rollTrait() };
+    placedUnits.push(newU);
+    startSpin(newU, newU.trait);
+    toast(`${UNITS[selectedShopUnit].name} deployed!`);
+  } else {
+    selectedPlacedUnit = null;
+    document.getElementById("details").classList.remove("show");
+  }
+});
+
+function showCombatDetails(u) {
+  const s = unitStats(u);
+  const base = UNITS[u.type];
+  const nextUp = base.upgrade[u.level];
+  const rar = RARITIES[base.rarity];
+  const trait = TRAITS[u.trait || "bolt"];
+  const upCosts = [220, 500];
+  const cost = nextUp ? upCosts[u.level] : 0;
+  const panel = document.getElementById("details");
+  panel.innerHTML = `
+    <h3>${s.name}</h3>
+    <div class="rar" style="color:${rar.color};">${rar.label} · LV ${u.level+1}</div>
+    <div style="background:linear-gradient(90deg,${trait.color}22,transparent);border-left:3px solid ${trait.color};padding:6px 8px;margin:8px 0;border-radius:4px;">
+      <div style="font-size:0.6rem;color:#8a8ab5;letter-spacing:0.1em;">TRAIT</div>
+      <div style="font-size:0.9rem;font-weight:700;color:${trait.color};">${trait.name}</div>
+    </div>
+    <p><b>Damage:</b> ${s.dmg}</p>
+    <p><b>Range:</b> ${s.range}</p>
+    <p><b>Speed:</b> ${(s.spa/1000).toFixed(2)}s</p>
+    ${s.splash ? `<p><b>AoE:</b> ${s.splash}</p>` : ""}
+    <button class="spin" id="spinB" ${gameGold < 150 || spinAnimation ? 'disabled' : ''}>🎲 SPIN TRAIT (150g)</button>
+    ${nextUp ? `<button id="upB" ${gameGold < cost ? 'disabled' : ''}>UPGRADE (${cost}g)</button>` : `<p style="color:#ffe680;font-size:0.75rem;margin-top:6px;">MAX LEVEL</p>`}
+    <button class="sell" id="sellB">SELL (${Math.floor(costTotal(u)*0.6)}g)</button>
+  `;
+  panel.classList.add("show");
+  const spinB = document.getElementById("spinB");
+  if (spinB) spinB.addEventListener("click", () => {
+    if (gameGold < 150 || spinAnimation) return;
+    gameGold -= 150; u.trait = rollTrait(); startSpin(u, u.trait);
+  });
+  const upB = document.getElementById("upB");
+  if (upB) upB.addEventListener("click", () => {
+    if (gameGold >= cost) { gameGold -= cost; u.level++; showCombatDetails(u); toast(`Upgraded to LV ${u.level+1}!`); }
+  });
+  document.getElementById("sellB").addEventListener("click", () => {
+    gameGold += Math.floor(costTotal(u)*0.6);
+    placedUnits = placedUnits.filter(x => x !== u);
+    selectedPlacedUnit = null; panel.classList.remove("show");
+    toast("Sold");
+  });
+}
+function costTotal(u) {
+  const upCosts = [220, 500];
+  let total = UNITS[u.type].cost;
+  for (let i = 0; i < u.level; i++) total += upCosts[i];
+  return total;
+}
+
+function startSpin(unit, finalTrait) {
+  spinAnimation = { unit, startTime: performance.now(), duration: 2200, finalTrait };
+}
+function drawSpin() {
+  if (!spinAnimation) return;
+  const elapsed = performance.now() - spinAnimation.startTime;
+  const t = Math.min(1, elapsed / spinAnimation.duration);
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,0.72)"; ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  const cx = CANVAS_W/2, cy = CANVAS_H/2;
+  ctx.fillStyle = "#ffe680"; ctx.font = "bold 22px sans-serif"; ctx.textAlign = "center";
+  ctx.fillText("SPINNING TRAIT", cx, cy - 100);
+  ctx.font = "12px sans-serif"; ctx.fillStyle = "#8a8ab5";
+  ctx.fillText(unitStats(spinAnimation.unit).name, cx, cy - 78);
+  const easeOut = 1 - Math.pow(1 - t, 3);
+  const spins = easeOut * 40;
+  const idx = Math.floor(spins) % TRAIT_IDS.length;
+  const showKey = t < 1 ? TRAIT_IDS[idx] : spinAnimation.finalTrait;
+  const trait = TRAITS[showKey];
+  const cardW = 340, cardH = 130;
+  const grd = ctx.createLinearGradient(cx-cardW/2, cy-cardH/2, cx+cardW/2, cy+cardH/2);
+  grd.addColorStop(0, trait.color + "40"); grd.addColorStop(1, "#12122a");
+  ctx.fillStyle = grd; ctx.strokeStyle = trait.color; ctx.lineWidth = 3;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(cx-cardW/2, cy-cardH/2, cardW, cardH, 12);
+  else ctx.rect(cx-cardW/2, cy-cardH/2, cardW, cardH);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = trait.color; ctx.font = "bold 34px sans-serif";
+  ctx.fillText(trait.name.toUpperCase(), cx, cy - 5);
+  ctx.font = "bold 11px sans-serif"; ctx.fillStyle = "#e6e6ff";
+  ctx.fillText((RARITIES[trait.rarity]||{label:trait.rarity.toUpperCase()}).label, cx, cy + 22);
+  ctx.font = "12px sans-serif"; ctx.fillStyle = "#cfe0b8";
+  const parts = [];
+  if (trait.dmgMult !== 1) parts.push(`DMG ×${trait.dmgMult.toFixed(2)}`);
+  if (trait.rangeMult !== 1) parts.push(`RNG ×${trait.rangeMult.toFixed(2)}`);
+  if (trait.spaMult !== 1) parts.push(`SPA ×${trait.spaMult.toFixed(2)}`);
+  ctx.fillText(parts.join("   ·   "), cx, cy + 44);
+  if (t >= 1 && (trait.rarity === "legendary" || trait.rarity === "mythic")) {
+    for (let i = 0; i < 20; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 80 + Math.random() * 140;
+      ctx.fillStyle = trait.color; ctx.globalAlpha = 0.5 + Math.random() * 0.5;
+      ctx.fillRect(cx + Math.cos(a)*r, cy + Math.sin(a)*r, 3, 3);
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (t >= 1) {
+    ctx.fillStyle = "#8fbf5a"; ctx.font = "bold 13px sans-serif";
+    ctx.fillText("Click anywhere to continue", cx, cy + 95);
+  }
+  ctx.restore();
+  if (t >= 1 && elapsed > spinAnimation.duration + 3500) finishSpin();
+}
+function finishSpin() {
+  const u = spinAnimation && spinAnimation.unit;
+  spinAnimation = null;
+  if (u && selectedPlacedUnit === u) showCombatDetails(u);
+}
+
+document.getElementById("startBtn").addEventListener("click", () => {
+  if (!running) running = true;
+  startWave();
+});
+document.getElementById("speedBtn").addEventListener("click", () => {
+  speed = speed === 1 ? 2 : speed === 2 ? 3 : 1;
+  document.getElementById("speedBtn").textContent = `SPEED ${speed}x`;
+});
+document.getElementById("quitBtn").addEventListener("click", () => {
+  if (confirm("Quit this raid? Progress will be lost.")) {
+    running = false;
+    document.getElementById("combatView").classList.remove("show");
+  }
+});
+
+// ============================================================= ROUTING
+function renderPage(page) {
+  if (page === "home") renderHome();
+  else if (page === "summon") renderSummon();
+  else if (page === "collection") renderCollection();
+  else if (page === "play") renderPlay();
+  else if (page === "codes") renderCodes();
+}
+
+// ============================================================= BOOT
+refreshHUD();
+renderPage("home");
+})();
+</script>
+</body>
+</html>
